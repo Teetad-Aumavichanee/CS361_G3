@@ -51,4 +51,37 @@
 ##  5. Database schema 
 wait...
 
-## 6. Clould Architecture
+## 6. Cloud Architecture 
+wait...
+
+## 7. Folder Structure
+
+The system is organized into two main sections: `backend` and `frontend`. Docker and shared project configuration remain in the root folder.
+
+```text
+G3-projetc/
+├── Dockerfile                 # Builds the application container
+├── docker-compose.yml         # Runs the backend and MongoDB services
+├── requirements.txt           # Python dependencies
+├── README.md                  # Project documentation
+├── project-context.md         # Project requirements and architecture
+├── .gitignore                 # Files excluded from Git
+├── .env                       # Environment-specific configuration
+├── uploads/                   # Uploaded document files
+│
+├── backend/                   # Flask backend section
+│   ├── app.py                 # Flask application entry point
+│   ├── config.py              # Application configuration
+│   ├── routes/                # API and page routes
+│   ├── models/                # MongoDB data operations
+│   └── services/              # Application business logic
+│
+└── frontend/                 # Frontend section
+    ├── html/                  # HTML page files
+    ├── css/                   # CSS stylesheet files
+    └── js/                    # JavaScript files
+```
+
+The backend handles authentication, document registration, file uploads, recipient assignment, MongoDB access, and role-based permissions. The frontend contains the user interface and communicates with the backend routes.
+
+The `uploads/` directory is mounted into the application container so uploaded documents remain available when containers are recreated. Sensitive values such as database credentials and secret keys belong in `.env` and must not be committed to Git.

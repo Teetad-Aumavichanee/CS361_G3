@@ -1,0 +1,34 @@
+# Ignore Python bytecode and cache directories.
+__pycache__/
+*.py[cod]
+
+# Ignore local Python virtual environments.
+.venv/
+venv/
+env/
+
+# Ignore environment files containing local settings or secrets.
+.env
+.env.*
+!.env.example
+
+# Ignore uploaded documents while keeping the upload directory available.
+uploads/*
+!uploads/.gitkeep
+
+# Ignore test, coverage, and tool cache files.
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ignore application and system log files.
+*.log
+
+# Ignore local Docker Compose override files.
+docker-compose.override.yml
+
+# Ignore operating-system and editor files.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

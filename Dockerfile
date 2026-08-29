@@ -25,5 +25,5 @@ RUN mkdir -p /app/uploads
 # Document the port used by the Flask application.
 EXPOSE 5000
 
-# Start the Flask application through its app.py entry point.
-CMD ["python", "app.py"]
+# Start the Flask application through the backend entry point.
+CMD ["python", "backend/app.py"]
