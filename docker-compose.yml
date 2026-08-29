@@ -1,0 +1,48 @@
+# Define the services required by the e-Mailbox system.
+services:
+  # Define the Flask application service.
+  app:
+    # Build the application image from the local project.
+    build:
+      # Use the current directory as the Docker build context.
+      context: .
+      # Use the project's Dockerfile for the image build.
+      dockerfile: Dockerfile
+    # Publish the application port to the host machine.
+    ports:
+      - "5000:5000" # Map host port 5000 to container port 5000.
+    # Provide configuration values to the Flask application.
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/e_mailbox # Connect to the MongoDB service and database.
+      UPLOAD_FOLDER: /app/uploads # Store uploaded files in the container upload directory.
+    # Persist uploaded files in the project's local uploads directory.
+    volumes:
+      - ./uploads:/app/uploads # Mount the host uploads directory into the container.
+    # Start the application only after MongoDB reports healthy.
+    depends_on:
+      # Configure the dependency on the MongoDB service.
+      mongodb:
+        condition: service_healthy # Wait for the MongoDB health check to pass.
+
+  # Define the MongoDB database service.
+  mongodb:
+    # Use the official MongoDB 7 image.
+    image: mongo:7
+    # Restart MongoDB automatically unless it is explicitly stopped.
+    restart: unless-stopped
+    # Publish MongoDB's default port to the host machine.
+    ports:
+      - "27017:27017" # Map host port 27017 to container port 27017.
+    # Persist database data across container restarts.
+    volumes:
+      - mongodb_data:/data/db # Mount the named volume at MongoDB's data directory.
+    # Check whether MongoDB is ready to accept connections.
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' localhost:27017/test | grep 1"] # Return healthy when MongoDB responds to ping.
+      interval: 10s # Run the health check every ten seconds.
+      timeout: 5s # Allow up to five seconds for each health check.
+      retries: 5 # Mark MongoDB unhealthy after five failed checks.
+
+# Declare the named volume used for persistent MongoDB data.
+volumes:
+  mongodb_data: # Store MongoDB data outside the database container lifecycle.

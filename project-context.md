@@ -50,3 +50,5 @@
 
 ##  5. Database schema 
 wait...
+
+## 6. Clould Architecture
