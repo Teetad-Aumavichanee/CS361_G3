@@ -12,7 +12,6 @@ body {
   color: #3D3730;
 }
 
-/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -25,7 +24,6 @@ body {
   border-radius: 4px;
 }
 
-/* Date Picker Calendar Icon */
 input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.6;
