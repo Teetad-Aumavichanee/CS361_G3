@@ -1,0 +1,26 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Prompt', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #FAF8F5;
+  color: #3D3730;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1EDE6;
+}
+::-webkit-scrollbar-thumb {
+  background: #C8C1B6;
+  border-radius: 4px;
+}
