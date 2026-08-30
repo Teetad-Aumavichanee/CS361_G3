@@ -12,6 +12,7 @@ export default function StaffDocumentIngestion() {
   const [isPdf, setIsPdf] = useState(false);
   const [isImage, setIsImage] = useState(false);
   const [pdfDoc, setPdfDoc] = useState(null);
+  const [isUnsupported, setIsUnsupported] = useState(false);
   const [isPreviewActive, setIsPreviewActive] = useState(false);
 
   const [zoom, setZoom] = useState(100);
@@ -20,6 +21,7 @@ export default function StaffDocumentIngestion() {
 
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
+  const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg'];
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -50,33 +52,46 @@ export default function StaffDocumentIngestion() {
 
   const processFile = async (file) => {
     if (!file) return;
-    setSelectedFile(file);
     const ext = file.name.split('.').pop().toLowerCase();
-    const url = URL.createObjectURL(file);
-    setFilePreviewUrl(url);
-    setIsPreviewActive(true);
-    setZoom(100);
-    setCurrentPage(1);
+    const isValid = allowedExtensions.includes(ext);
 
-    if (ext === 'pdf') {
-      setIsPdf(true);
+    setSelectedFile(file);
+
+    if (!isValid) {
+      setIsUnsupported(true);
+      setIsPreviewActive(false);
+      setFilePreviewUrl(null);
+      setPdfDoc(null);
+      setIsPdf(false);
       setIsImage(false);
-      try {
-        if (window.pdfjsLib) {
-          const arrayBuffer = await file.arrayBuffer();
-          const doc = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-          setPdfDoc(doc);
-          setTotalPages(doc.numPages);
-          renderPdfPage(1, doc, 100);
+    } else {
+      setIsUnsupported(false);
+      const url = URL.createObjectURL(file);
+      setFilePreviewUrl(url);
+      setIsPreviewActive(true);
+      setZoom(100);
+      setCurrentPage(1);
+
+      if (ext === 'pdf') {
+        setIsPdf(true);
+        setIsImage(false);
+        try {
+          if (window.pdfjsLib) {
+            const arrayBuffer = await file.arrayBuffer();
+            const doc = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            setPdfDoc(doc);
+            setTotalPages(doc.numPages);
+            renderPdfPage(1, doc, 100);
+          }
+        } catch (err) {
+          setTotalPages(1);
         }
-      } catch (err) {
+      } else {
+        setIsPdf(false);
+        setIsImage(true);
+        setPdfDoc(null);
         setTotalPages(1);
       }
-    } else {
-      setIsPdf(false);
-      setIsImage(true);
-      setPdfDoc(null);
-      setTotalPages(1);
     }
   };
 
@@ -93,6 +108,14 @@ export default function StaffDocumentIngestion() {
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 25, 200));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 25, 50));
   const handleClosePreview = () => setIsPreviewActive(false);
+
+  const isFormValid =
+    formData.title.trim() !== '' &&
+    formData.receivedDate.trim() !== '' &&
+    formData.recipientName.trim() !== '' &&
+    formData.senderName.trim() !== '' &&
+    selectedFile !== null &&
+    !isUnsupported;
 
   return (
     <div className="min-h-screen w-full bg-[#FAF8F5] flex flex-col md:flex-row font-['Prompt',sans-serif] text-[#3D3730]">
@@ -158,13 +181,20 @@ export default function StaffDocumentIngestion() {
                     <span className="text-[11px] text-[#70675D] font-normal text-center truncate w-full pt-1" title={selectedFile.name}>
                       {selectedFile.name}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsPreviewActive(true)}
-                      className="w-full border border-[#C8C1B6] hover:border-[#8C8176] hover:bg-[#F5F2EC] rounded-md py-1 px-1 text-center transition cursor-pointer"
-                    >
-                      <span className="text-[11px] text-[#554E45] font-light">à¸”à¸¹à¹€à¸­à¸à¸ªà¸²à¸£</span>
-                    </button>
+
+                    {isUnsupported ? (
+                      <div className="w-full border border-[#E08A8A] bg-[#FFF5F5] rounded-md py-1 px-1 text-center">
+                        <span className="text-[10px] text-[#D9534F] font-light block leading-tight">à¹€à¸­à¸à¸ªà¸²à¸£à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsPreviewActive(true)}
+                        className="w-full border border-[#C8C1B6] hover:border-[#8C8176] hover:bg-[#F5F2EC] rounded-md py-1 px-1 text-center transition cursor-pointer"
+                      >
+                        <span className="text-[11px] text-[#554E45] font-light">à¸”à¸¹à¹€à¸­à¸à¸ªà¸²à¸£</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -175,7 +205,12 @@ export default function StaffDocumentIngestion() {
         <div className="pt-8 mt-auto">
           <button
             type="button"
-            className="w-full py-3.5 px-4 rounded-xl font-normal text-sm bg-[#EFECE6] text-[#A39B90] cursor-not-allowed"
+            disabled={!isFormValid}
+            className={`w-full py-3.5 px-4 rounded-xl font-normal text-sm transition ${
+              isFormValid
+                ? 'bg-[#8C8176] hover:bg-[#7A7067] text-white shadow-sm cursor-pointer'
+                : 'bg-[#EFECE6] text-[#A39B90] cursor-not-allowed'
+            }`}
           >
             à¸šà¸±à¸™à¸—à¸¶à¸à¹€à¸­à¸à¸ªà¸²à¸£
           </button>
@@ -195,7 +230,7 @@ export default function StaffDocumentIngestion() {
           </div>
 
           <div className="w-full aspect-[1/1.414] min-h-[580px] bg-white rounded shadow-sm border border-[#E5E0D8] relative overflow-auto flex items-center justify-center">
-            {isPreviewActive && filePreviewUrl ? (
+            {isPreviewActive && filePreviewUrl && !isUnsupported ? (
               <div className="w-full h-full flex items-center justify-center p-2">
                 {isPdf ? (
                   <canvas ref={canvasRef} className="max-w-full max-h-full object-contain shadow-xs bg-white" />
