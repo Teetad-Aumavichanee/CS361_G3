@@ -552,12 +552,13 @@
 
           {/* Right Canvas Area with Pan & Zoom */}
           <div
-            className="w-full md:w-[65%] lg:w-[67%] h-screen max-h-screen bg-[#F4F2EE] flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden select-none"
+            className="w-full md:w-[65%] lg:w-[67%] h-screen max-h-screen bg-[#F4F2EE] flex flex-col items-center justify-start pt-3 sm:pt-4 pb-3 px-4 relative overflow-hidden select-none"
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
           >
-            <div className="w-full max-w-[580px] flex flex-col items-center">
-              <div className="w-full flex items-center justify-between text-xs text-[#70675D] px-2 py-1.5 mb-1">
+            <div className="h-[84vh] max-h-[820px] w-auto aspect-[1/1.414] max-w-full flex flex-col items-center">
+              {/* Top Canvas Controls */}
+              <div className="w-full flex items-center justify-between text-xs text-[#70675D] px-1 py-1 mb-1 shrink-0">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -624,10 +625,11 @@
                 </button>
               </div>
 
+              {/* True Portrait A4 Canvas Container */}
               <div
                 ref={containerRef}
                 onMouseDown={handleMouseDown}
-                className={`w-full max-h-[82vh] aspect-[1/1.414] bg-white rounded shadow-sm border border-[#E5E0D8] relative overflow-hidden flex items-center justify-center ${
+                className={`w-full flex-1 bg-white rounded shadow-sm border border-[#E5E0D8] relative overflow-hidden flex items-center justify-center ${
                   isPreviewActive ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
                 }`}
               >
