@@ -8,6 +8,7 @@ export default function StaffDocumentIngestion() {
     senderName: ''
   });
   const [selectedFile, setSelectedFile] = useState(null);
+  const [isPreviewActive, setIsPreviewActive] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleInputChange = (field, value) => {
@@ -17,6 +18,7 @@ export default function StaffDocumentIngestion() {
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
+      setIsPreviewActive(true);
     }
   };
 
@@ -25,6 +27,7 @@ export default function StaffDocumentIngestion() {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setSelectedFile(e.dataTransfer.files[0]);
+      setIsPreviewActive(true);
     }
   };
 
@@ -88,6 +91,21 @@ export default function StaffDocumentIngestion() {
                 >
                   <span className="text-3xl text-[#9E9689] group-hover:text-[#6B6257] font-light transition">+</span>
                 </div>
+
+                {selectedFile && (
+                  <div className="w-24 h-32 rounded-xl border border-[#E5E0D8] bg-white flex flex-col items-center justify-between p-2.5 shadow-sm shrink-0 transition">
+                    <span className="text-[11px] text-[#70675D] font-normal text-center truncate w-full pt-1" title={selectedFile.name}>
+                      {selectedFile.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsPreviewActive(true)}
+                      className="w-full border border-[#C8C1B6] hover:border-[#8C8176] hover:bg-[#F5F2EC] rounded-md py-1 px-1 text-center transition cursor-pointer"
+                    >
+                      <span className="text-[11px] text-[#554E45] font-light">à¸”à¸¹à¹€à¸­à¸à¸ªà¸²à¸£</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -103,7 +121,7 @@ export default function StaffDocumentIngestion() {
         </div>
       </div>
 
-      <div className="w-full md:w-[65%] lg:w-[67%] min-h-screen bg-[#F4F2EE] flex flex-col items-center justify-center p-4 sm:p-8">
+      <div className="w-full md:w-[65%] lg:w-[67%] min-h-screen bg-[#F4F2EE] flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-auto">
         <div className="w-full max-w-[620px] aspect-[1/1.414] min-h-[580px] bg-white rounded shadow-sm border border-[#E5E0D8] flex items-center justify-center">
           <span className="text-2xl sm:text-3xl font-light tracking-wide text-[#70675D]">Preview à¹€à¸­à¸à¸ªà¸²à¸£</span>
         </div>
