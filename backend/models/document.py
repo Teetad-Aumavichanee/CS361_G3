@@ -16,19 +16,26 @@ class Document:
     # Create a document model and validate the fields required by the schema.
     def __init__(
         self,
-        document_type_id,
         title,
+        document_date,
+        sender,
+        receiver,
         file_path,
         file_name,
         file_type,
         file_size,
-        uploaded_by,
+        uploaded_by="system",
+        document_type_id=None,
         uploaded_at=None,
         document_id=None,
     ):
         # Text fields must contain useful values after trimming whitespace.
         if not isinstance(title, str) or not title.strip():
             raise ValueError("Document title must be a non-empty string")
+        if not isinstance(sender, str) or not sender.strip():
+            raise ValueError("Document sender must be a non-empty string")
+        if not isinstance(receiver, str) or not receiver.strip():
+            raise ValueError("Document receiver must be a non-empty string")
         if not isinstance(file_path, str) or not file_path.strip():
             raise ValueError("Document file path must be a non-empty string")
         if not isinstance(file_name, str) or not file_name.strip():
@@ -42,14 +49,31 @@ class Document:
         if not isinstance(uploaded_by, str) or not uploaded_by.strip():
             raise ValueError("Document uploader must be a non-empty string")
 
+        # Store the frontend date field as date-only ISO text because it does
+        # not contain a time or timezone.
+        if not isinstance(document_date, str) or not document_date.strip():
+            raise ValueError("Document date must be a non-empty string")
+        try:
+            datetime.strptime(document_date, "%Y-%m-%d")
+        except ValueError as error:
+            raise ValueError("Document date must use YYYY-MM-DD format") from error
+
         # MongoDB uses _id for the document's identity; it is optional before
         # insertion because MongoDB can generate it automatically.
         self.id = document_id
 
         # References between collections are stored as ObjectId values rather
-        # than plain strings.
-        self.document_type_id = self._to_object_id(document_type_id)
+        # than plain strings. The field is optional until the UI provides a
+        # document type selector.
+        self.document_type_id = (
+            self._to_object_id(document_type_id)
+            if document_type_id is not None
+            else None
+        )
         self.title = title.strip()
+        self.document_date = document_date.strip()
+        self.sender = sender.strip()
+        self.receiver = receiver.strip()
         self.file_path = file_path.strip()
         self.file_name = file_name.strip()
         self.file_type = file_type.strip()
@@ -60,22 +84,24 @@ class Document:
         self.uploaded_by = uploaded_by.strip()
 
     # Normalize an ObjectId value and provide a clear model-level error for an
-    # invalid document type reference.
+    # invalid reference.
     @staticmethod
-    def _to_object_id(value):
+    def _to_object_id(value, field_name="document_type_id"):
         if isinstance(value, ObjectId):
             return value
         try:
             return ObjectId(value)
         except Exception as error:
-            raise ValueError("document_type_id must be a valid ObjectId") from error
+            raise ValueError(f"{field_name} must be a valid ObjectId") from error
 
     # Convert the Python model into the shape expected by MongoDB.
     def to_mongo(self):
         """Return the model as a MongoDB document."""
         document = {
-            "document_type_id": self.document_type_id,
             "title": self.title,
+            "document_date": self.document_date,
+            "sender": self.sender,
+            "receiver": self.receiver,
             "file_path": self.file_path,
             "file_name": self.file_name,
             "file_type": self.file_type,
@@ -83,6 +109,11 @@ class Document:
             "uploaded_at": self.uploaded_at,
             "uploaded_by": self.uploaded_by,
         }
+
+        # Keep the relation optional while the frontend has no document type
+        # input field.
+        if self.document_type_id is not None:
+            document["document_type_id"] = self.document_type_id
 
         # Include _id only when the model already represents a stored record.
         if self.id is not None:
@@ -103,7 +134,7 @@ class Document:
     @classmethod
     def find_by_id(cls, document_id):
         """Return a matching model or None when it does not exist."""
-        object_id = cls._to_object_id(document_id)
+        object_id = cls._to_object_id(document_id, "document_id")
         document = cls.collection.find_one({"_id": object_id})
         return cls.from_mongo(document) if document else None
 
@@ -122,6 +153,9 @@ class Document:
         editable_fields = {
             "document_type_id",
             "title",
+            "document_date",
+            "sender",
+            "receiver",
             "file_path",
             "file_name",
             "file_type",
@@ -141,6 +175,9 @@ class Document:
         values = {
             "document_type_id": self.document_type_id,
             "title": self.title,
+            "document_date": self.document_date,
+            "sender": self.sender,
+            "receiver": self.receiver,
             "file_path": self.file_path,
             "file_name": self.file_name,
             "file_type": self.file_type,
@@ -178,13 +215,16 @@ class Document:
     def from_mongo(cls, document):
         """Build a model from a MongoDB document."""
         return cls(
-            document_type_id=document["document_type_id"],
             title=document["title"],
+            document_date=document["document_date"],
+            sender=document["sender"],
+            receiver=document["receiver"],
             file_path=document["file_path"],
             file_name=document["file_name"],
             file_type=document["file_type"],
             file_size=document["file_size"],
             uploaded_at=document.get("uploaded_at"),
-            uploaded_by=document["uploaded_by"],
+            uploaded_by=document.get("uploaded_by", "system"),
+            document_type_id=document.get("document_type_id"),
             document_id=document.get("_id"),
         )
