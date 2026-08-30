@@ -15,20 +15,29 @@ class DocumentService:
     # Save the file and its MongoDB metadata as one document-registration flow.
     def register_document(
         self,
-        document_type_id,
         title,
-        uploaded_by,
+        document_date,
+        sender,
+        receiver,
         uploaded_file,
+        uploaded_by="system",
+        document_type_id=None,
     ):
         """Store an uploaded file and return its registered Document model."""
-        if DocumentType.find_by_id(document_type_id) is None:
+        # Validate the optional document type only when the caller supplies it.
+        if (
+            document_type_id is not None
+            and DocumentType.find_by_id(document_type_id) is None
+        ):
             raise ValueError("Document type was not found")
 
         file_metadata = self.file_storage_service.save_file(uploaded_file)
         try:
             document = Document(
-                document_type_id=document_type_id,
                 title=title,
+                document_date=document_date,
+                sender=sender,
+                receiver=receiver,
                 file_path=file_metadata["file_path"],
                 file_name=file_metadata["file_name"],
                 file_type=file_metadata["file_type"],
