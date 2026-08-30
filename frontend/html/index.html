@@ -36,10 +36,15 @@
     input::placeholder {
       color: #9E9689 !important;
     }
-    /* Hide datalist arrow if any */
-    input::-webkit-calendar-picker-indicator {
-      display: none !important;
-      -webkit-appearance: none;
+    /* Date picker calendar indicator */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      opacity: 0.6;
+      filter: invert(0.3);
+      transition: opacity 0.2s;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator:hover {
+      opacity: 1;
     }
     /* Custom Scrollbar */
     ::-webkit-scrollbar {

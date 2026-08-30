@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap');
 
 * {
   box-sizing: border-box;
@@ -23,4 +23,15 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #C8C1B6;
   border-radius: 4px;
+}
+
+/* Date Picker Calendar Icon */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  filter: invert(0.3);
+  transition: opacity 0.2s;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
