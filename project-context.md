@@ -60,6 +60,9 @@ Table DOCUMENT_TYPES {
 Table DOCUMENTS {
   _id ObjectId [pk]
   document_type_id ObjectId [ref: > DOCUMENT_TYPES._id]
+  document_date       # YYYY-MM-DD
+  sender
+  receiver
   title string
   file_path string
   file_name string
@@ -100,6 +103,9 @@ G3-projetc/
     └── js/                    # JavaScript files
 ```
 
-The backend handles authentication, document registration, file uploads, recipient assignment, MongoDB access, and role-based permissions. The frontend contains the user interface and communicates with the backend routes.
-
-The `uploads/` directory is mounted into the application container so uploaded documents remain available when containers are recreated. Sensitive values such as database credentials and secret keys belong in `.env` and must not be committed to Git.
+## 8. API Design
+  POST /api/v1/documents -เจ้าหน้าที่บันทึกข้อมูลเอกสาร (Metadata) และอัปโหลดไฟล์
+  GET  /api/v1/documents -อาจารย์ดึงรายการเอกสารทั้งหมดมาแสดงในตาราง
+  GET  /api/v1/documents/<id> -ดึงข้อมูลรายละเอียดของเอกสารเพื่อแสดงผลในหน้าต่าง Preview
+  GET  /api/v1/documents/<id>/file -Returns the actual uploaded file so the frontend can view or
+  download it.
