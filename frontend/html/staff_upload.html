@@ -552,12 +552,12 @@
 
           {/* Right Canvas Area with Pan & Zoom */}
           <div
-            className="w-full md:w-[65%] lg:w-[67%] min-h-screen bg-[#F4F2EE] flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden select-none"
+            className="w-full md:w-[65%] lg:w-[67%] h-screen max-h-screen bg-[#F4F2EE] flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden select-none"
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
           >
-            <div className="w-full max-w-[640px] flex flex-col items-center">
-              <div className="w-full flex items-center justify-between text-xs text-[#70675D] px-2 py-2 mb-1">
+            <div className="w-full max-w-[580px] flex flex-col items-center">
+              <div className="w-full flex items-center justify-between text-xs text-[#70675D] px-2 py-1.5 mb-1">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -627,7 +627,7 @@
               <div
                 ref={containerRef}
                 onMouseDown={handleMouseDown}
-                className={`w-full aspect-[1/1.414] min-h-[580px] bg-white rounded shadow-sm border border-[#E5E0D8] relative overflow-hidden flex items-center justify-center ${
+                className={`w-full max-h-[82vh] aspect-[1/1.414] bg-white rounded shadow-sm border border-[#E5E0D8] relative overflow-hidden flex items-center justify-center ${
                   isPreviewActive ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
                 }`}
               >
@@ -654,12 +654,6 @@
                   </span>
                 )}
               </div>
-
-              {isPreviewActive && (
-                <p className="text-[11px] text-[#9E9689] mt-2 font-light">
-                  💡 คลิกเมาส์ค้างเพื่อลากเลื่อนดูเอกสาร (Pan & Drag)
-                </p>
-              )}
             </div>
           </div>
         </div>
