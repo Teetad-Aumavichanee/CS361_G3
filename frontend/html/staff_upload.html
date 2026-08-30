@@ -44,20 +44,24 @@
     function StaffDocumentIngestion() {
       const [formData, setFormData] = useState({
         title: '',
-        receivedDate: '2026-08-30',
+        receivedDate: new Date().toISOString().split('T')[0],
         recipientName: '',
         senderName: ''
       });
 
-      const [selectedFile, setSelectedFile] = useState(null);
-      const [filePreviewUrl, setFilePreviewUrl] = useState(null);
+      const [uploadedFiles, setUploadedFiles] = useState([]);
+      const [activeFileId, setActiveFileId] = useState(null);
+
       const [isPdf, setIsPdf] = useState(false);
       const [isImage, setIsImage] = useState(false);
       const [pdfDoc, setPdfDoc] = useState(null);
-      const [isUnsupported, setIsUnsupported] = useState(false);
       const [isPreviewActive, setIsPreviewActive] = useState(false);
 
       const [zoom, setZoom] = useState(100);
+      const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+      const [isDragging, setIsDragging] = useState(false);
+      const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
       const [currentPage, setCurrentPage] = useState(1);
       const [totalPages, setTotalPages] = useState(1);
 
@@ -66,6 +70,7 @@
 
       const fileInputRef = useRef(null);
       const canvasRef = useRef(null);
+      const containerRef = useRef(null);
 
       const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg'];
 
@@ -80,95 +85,134 @@
         }, 4000);
       };
 
-      const renderPdfPage = useCallback(async (pageNumber, doc, zoomLevel) => {
+      const renderPdfPage = useCallback(async (pageNumber, doc) => {
         if (!doc || !canvasRef.current) return;
         try {
           const page = await doc.getPage(pageNumber);
           const canvas = canvasRef.current;
           const context = canvas.getContext('2d');
-          
           const baseScale = 1.35;
-          const scale = baseScale * (zoomLevel / 100);
-          const viewport = page.getViewport({ scale });
+          const viewport = page.getViewport({ scale: baseScale });
 
           canvas.height = viewport.height;
           canvas.width = viewport.width;
 
           await page.render({ canvasContext: context, viewport: viewport }).promise;
         } catch (err) {
-          console.error(err);
+          console.error('Error rendering PDF page:', err);
         }
       }, []);
 
-      useEffect(() => {
-        if (isPdf && pdfDoc && isPreviewActive) {
-          renderPdfPage(currentPage, pdfDoc, zoom);
-        }
-      }, [isPdf, pdfDoc, currentPage, zoom, isPreviewActive, renderPdfPage]);
+      const processFiles = (newFiles) => {
+        if (!newFiles || newFiles.length === 0) return;
 
-      const processFile = async (file) => {
-        if (!file) return;
-        const ext = file.name.split('.').pop().toLowerCase();
-        const isValid = allowedExtensions.includes(ext);
+        const fileList = Array.from(newFiles);
+        let hasInvalid = false;
 
-        setSelectedFile(file);
+        const processedList = fileList.map((file, idx) => {
+          const ext = file.name.split('.').pop().toLowerCase();
+          const isValid = allowedExtensions.includes(ext);
+          if (!isValid) hasInvalid = true;
 
-        if (!isValid) {
-          setIsUnsupported(true);
-          setIsPreviewActive(false);
-          setFilePreviewUrl(null);
-          setPdfDoc(null);
-          setIsPdf(false);
-          setIsImage(false);
+          return {
+            id: `${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`,
+            file: file,
+            name: file.name,
+            ext: ext,
+            url: isValid ? URL.createObjectURL(file) : null,
+            isUnsupported: !isValid
+          };
+        });
+
+        setUploadedFiles(prev => [...prev, ...processedList]);
+
+        if (hasInvalid) {
           showToast('error', 'Error บันทึกไม่สำเร็จ', 'กรอกรายละเอียดไม่ครบ/ไฟล์ไม่ถูกต้อง');
-        } else {
-          setIsUnsupported(false);
-          const url = URL.createObjectURL(file);
-          setFilePreviewUrl(url);
-          setIsPreviewActive(true);
-          setZoom(100);
-          setCurrentPage(1);
+        }
 
-          if (ext === 'pdf') {
-            setIsPdf(true);
-            setIsImage(false);
-            try {
-              if (window.pdfjsLib) {
-                const arrayBuffer = await file.arrayBuffer();
-                const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                setPdfDoc(doc);
-                setTotalPages(doc.numPages);
-                renderPdfPage(1, doc, 100);
-              }
-            } catch (pdfErr) {
-              setTotalPages(1);
-            }
-          } else {
-            setIsPdf(false);
-            setIsImage(true);
-            setPdfDoc(null);
-            setTotalPages(1);
-          }
+        const firstValid = processedList.find(f => !f.isUnsupported);
+        if (firstValid) {
+          loadDocumentPreview(firstValid);
         }
       };
 
+      const loadDocumentPreview = async (item) => {
+        if (!item || item.isUnsupported) return;
+
+        setActiveFileId(item.id);
+        setIsPreviewActive(true);
+        setZoom(100);
+        setPanOffset({ x: 0, y: 0 });
+        setCurrentPage(1);
+
+        if (item.ext === 'pdf') {
+          setIsPdf(true);
+          setIsImage(false);
+          try {
+            if (window.pdfjsLib) {
+              const arrayBuffer = await item.file.arrayBuffer();
+              const doc = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+              setPdfDoc(doc);
+              setTotalPages(doc.numPages);
+              renderPdfPage(1, doc);
+            }
+          } catch (pdfErr) {
+            setTotalPages(1);
+          }
+        } else {
+          setIsPdf(false);
+          setIsImage(true);
+          setPdfDoc(null);
+          setTotalPages(1);
+        }
+      };
+
+      useEffect(() => {
+        if (isPdf && pdfDoc && isPreviewActive) {
+          renderPdfPage(currentPage, pdfDoc);
+        }
+      }, [isPdf, pdfDoc, currentPage, isPreviewActive, renderPdfPage]);
+
       const handleFileChange = (e) => {
-        if (e.target.files && e.target.files[0]) {
-          processFile(e.target.files[0]);
+        if (e.target.files && e.target.files.length > 0) {
+          processFiles(e.target.files);
+          if (fileInputRef.current) fileInputRef.current.value = '';
         }
       };
 
       const handleDragOver = (e) => e.preventDefault();
       const handleDrop = (e) => {
         e.preventDefault();
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-          processFile(e.dataTransfer.files[0]);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          processFiles(e.dataTransfer.files);
         }
+      };
+
+      const handleRemoveFile = (idToRemove, e) => {
+        e.stopPropagation();
+        setUploadedFiles(prev => {
+          const filtered = prev.filter(f => f.id !== idToRemove);
+          if (activeFileId === idToRemove) {
+            const nextValid = filtered.find(f => !f.isUnsupported);
+            if (nextValid) {
+              loadDocumentPreview(nextValid);
+            } else {
+              setIsPreviewActive(false);
+              setActiveFileId(null);
+              setPdfDoc(null);
+            }
+          }
+          return filtered;
+        });
       };
 
       const handleZoomIn = () => setZoom(prev => Math.min(prev + 25, 200));
       const handleZoomOut = () => setZoom(prev => Math.max(prev - 25, 50));
-      const handleClosePreview = () => setIsPreviewActive(false);
+      const handleClosePreview = () => {
+        setIsPreviewActive(false);
+        setActiveFileId(null);
+        setPanOffset({ x: 0, y: 0 });
+      };
 
       const handlePrevPage = () => {
         if (currentPage > 1) setCurrentPage(prev => prev - 1);
@@ -177,13 +221,32 @@
         if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
       };
 
+      const handleMouseDown = (e) => {
+        if (!isPreviewActive) return;
+        setIsDragging(true);
+        setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+      };
+
+      const handleMouseMove = (e) => {
+        if (!isDragging) return;
+        setPanOffset({
+          x: e.clientX - dragStart.x,
+          y: e.clientY - dragStart.y
+        });
+      };
+
+      const handleMouseUp = () => {
+        setIsDragging(false);
+      };
+
+      const hasAnyUnsupported = uploadedFiles.some(f => f.isUnsupported);
       const isFormValid =
         formData.title.trim() !== '' &&
         formData.receivedDate.trim() !== '' &&
         formData.recipientName.trim() !== '' &&
         formData.senderName.trim() !== '' &&
-        selectedFile !== null &&
-        !isUnsupported;
+        uploadedFiles.length > 0 &&
+        !hasAnyUnsupported;
 
       const handleSubmit = async (e) => {
         e.preventDefault();
@@ -199,7 +262,9 @@
         payload.append('receivedDate', formData.receivedDate);
         payload.append('recipientName', formData.recipientName);
         payload.append('senderName', formData.senderName);
-        payload.append('file', selectedFile);
+        uploadedFiles.forEach((item, index) => {
+          payload.append(`files[${index}]`, item.file);
+        });
 
         try {
           const response = await fetch('/api/v1/documents', {
@@ -229,17 +294,18 @@
       const resetForm = () => {
         setFormData({
           title: '',
-          receivedDate: '2026-08-30',
+          receivedDate: new Date().toISOString().split('T')[0],
           recipientName: '',
           senderName: ''
         });
-        setSelectedFile(null);
-        setFilePreviewUrl(null);
+        setUploadedFiles([]);
+        setActiveFileId(null);
         setIsPdf(false);
         setIsImage(false);
         setPdfDoc(null);
-        setIsUnsupported(false);
         setIsPreviewActive(false);
+        setPanOffset({ x: 0, y: 0 });
+        setZoom(100);
         if (fileInputRef.current) fileInputRef.current.value = '';
       };
 
@@ -254,7 +320,7 @@
           `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 595 842]/Parent 2 0 R/Resources<<>>>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n185\n%%EOF`
         ], { type: 'application/pdf' });
         const mockFile = new File([mockBlob], "File1.pdf", { type: "application/pdf" });
-        processFile(mockFile);
+        processFiles([mockFile]);
       };
 
       const mockFillInvalid = () => {
@@ -265,11 +331,14 @@
           senderName: 'ภาควิชาวิทยาการคอมพิวเตอร์'
         });
         const mockBadFile = new File(["main() {}"], "File1.c", { type: "text/plain" });
-        processFile(mockBadFile);
+        processFiles([mockBadFile]);
       };
 
+      const activeFile = uploadedFiles.find(f => f.id === activeFileId);
+
       return (
-        <div className="min-h-screen w-full bg-[#FAF8F5] flex flex-col md:flex-row font-['Prompt',sans-serif] text-[#3D3730] relative">
+        <div className="min-h-screen w-full bg-[#FAF8F5] flex flex-col md:flex-row font-['Prompt',sans-serif] text-[#3D3730] relative overflow-x-hidden">
+          {/* Quick Demo Toolbar */}
           <div className="fixed bottom-3 right-4 z-40 bg-white/95 backdrop-blur border border-[#D5CEC4] rounded-xl px-3 py-2 shadow-md flex items-center gap-2 text-xs">
             <span className="text-[#70675D] font-medium">Quick Demo:</span>
             <button
@@ -317,105 +386,138 @@
             </div>
           )}
 
-          <div className="w-full md:w-[35%] lg:w-[33%] min-h-screen bg-[#FAF8F5] p-6 sm:p-10 flex flex-col justify-between border-r border-[#EFECE6] shrink-0">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-normal text-[#4A433B] mb-8">เจ้าหน้าที่</h1>
+          {/* Left Form Area with Sticky Bottom Action */}
+          <div className="w-full md:w-[35%] lg:w-[33%] h-screen bg-[#FAF8F5] p-6 sm:p-10 flex flex-col justify-between border-r border-[#EFECE6] shrink-0 sticky top-0">
+            {/* Scrollable Form Content */}
+            <div className="overflow-y-auto pr-1 flex-1 space-y-6">
+              <h1 className="text-2xl sm:text-3xl font-normal text-[#4A433B]">เจ้าหน้าที่</h1>
 
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm text-[#70675D] mb-2 font-normal">รายละเอียดเอกสาร*</label>
-                  <div className="space-y-3">
-                    <input
-                      id="input-title"
-                      type="text"
-                      placeholder="ชื่อเรื่อง/เลขที่เอกสาร*"
-                      value={formData.title}
-                      onChange={e => handleInputChange('title', e.target.value)}
-                      className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
-                    />
-
-                    <input
-                      id="input-date"
-                      type="date"
-                      placeholder="วันที่รับ*"
-                      value={formData.receivedDate}
-                      onChange={e => handleInputChange('receivedDate', e.target.value)}
-                      className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
-                    />
-
-                    <input
-                      id="input-recipient"
-                      type="text"
-                      placeholder="อาจารย์ผู้รับ*"
-                      value={formData.recipientName}
-                      onChange={e => handleInputChange('recipientName', e.target.value)}
-                      className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
-                    />
-
-                    <input
-                      id="input-sender"
-                      type="text"
-                      placeholder="ผู้ส่ง/หน่วยงาน*"
-                      value={formData.senderName}
-                      onChange={e => handleInputChange('senderName', e.target.value)}
-                      className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-[#70675D] mb-2 font-normal">ไฟล์เอกสาร*</label>
-                  
+              <div>
+                <label className="block text-sm text-[#70675D] mb-2 font-normal">รายละเอียดเอกสาร*</label>
+                <div className="space-y-3">
                   <input
-                    id="file-input"
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept=".pdf,.png,.jpg,.jpeg,*"
-                    className="hidden"
+                    id="input-title"
+                    type="text"
+                    placeholder="ชื่อเรื่อง/เลขที่เอกสาร*"
+                    value={formData.title}
+                    onChange={e => handleInputChange('title', e.target.value)}
+                    className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
                   />
 
-                  <div className="flex items-center gap-3">
-                    <div
-                      id="btn-upload-box"
-                      onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                      onDragOver={handleDragOver}
-                      onDrop={handleDrop}
-                      className="w-24 h-32 rounded-xl border border-[#D5CEC4] bg-white flex flex-col items-center justify-center cursor-pointer hover:border-[#8C8176] hover:bg-[#FAF8F5] transition group shrink-0"
-                    >
-                      <span className="text-3xl text-[#9E9689] group-hover:text-[#6B6257] font-light transition">+</span>
-                    </div>
+                  <input
+                    id="input-date"
+                    type="date"
+                    placeholder="วันที่รับ*"
+                    value={formData.receivedDate}
+                    onChange={e => handleInputChange('receivedDate', e.target.value)}
+                    className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
+                  />
 
-                    {selectedFile && (
-                      <div id="uploaded-card" className="w-24 h-32 rounded-xl border border-[#E5E0D8] bg-white flex flex-col items-center justify-between p-2.5 shadow-sm shrink-0 transition">
-                        <span className="text-[11px] text-[#70675D] font-normal text-center truncate w-full pt-1" title={selectedFile.name}>
-                          {selectedFile.name}
+                  <input
+                    id="input-recipient"
+                    type="text"
+                    placeholder="อาจารย์ผู้รับ*"
+                    value={formData.recipientName}
+                    onChange={e => handleInputChange('recipientName', e.target.value)}
+                    className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
+                  />
+
+                  <input
+                    id="input-sender"
+                    type="text"
+                    placeholder="ผู้ส่ง/หน่วยงาน*"
+                    value={formData.senderName}
+                    onChange={e => handleInputChange('senderName', e.target.value)}
+                    className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm text-[#70675D] font-normal">ไฟล์เอกสาร*</label>
+                  {uploadedFiles.length > 0 && (
+                    <span className="text-xs text-[#70675D]">({uploadedFiles.length} ไฟล์)</span>
+                  )}
+                </div>
+
+                <p className="text-xs text-red-500 font-light mt-1 mb-2">
+                  * รองรับเฉพาะไฟล์ .pdf, .png, .jpg, .jpeg เท่านั้น
+                </p>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept=".pdf,.png,.jpg,.jpeg,*"
+                  multiple
+                  className="hidden"
+                />
+
+                {/* Multi-file Upload List and Add (+) Box */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div
+                    onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                    className="w-24 h-32 rounded-xl border border-[#D5CEC4] bg-white flex flex-col items-center justify-center cursor-pointer hover:border-[#8C8176] hover:bg-[#FAF8F5] transition group shrink-0"
+                    title="คลิกหรือลากไฟล์มาเพิ่ม (.pdf, .png, .jpg)"
+                  >
+                    <span className="text-3xl text-[#9E9689] group-hover:text-[#6B6257] font-light transition">+</span>
+                    <span className="text-[10px] text-[#9E9689] mt-1">เพิ่มไฟล์</span>
+                  </div>
+
+                  {uploadedFiles.map((item) => {
+                    const isActive = activeFileId === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`w-24 h-32 rounded-xl border bg-white flex flex-col items-center justify-between p-2.5 shadow-sm shrink-0 transition relative group ${
+                          isActive ? 'border-[#8C8176] ring-1 ring-[#8C8176]' : 'border-[#E5E0D8]'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => handleRemoveFile(item.id, e)}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#E08A8A] hover:bg-[#C97272] text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow transition cursor-pointer"
+                          title="ลบไฟล์นี้"
+                        >
+                          ✕
+                        </button>
+
+                        <span className="text-[11px] text-[#70675D] font-normal text-center truncate w-full pt-1" title={item.name}>
+                          {item.name}
                         </span>
 
-                        {isUnsupported ? (
-                          <div id="invalid-badge" className="w-full border border-[#E08A8A] bg-[#FFF5F5] rounded-md py-1 px-1 text-center">
+                        {item.isUnsupported ? (
+                          <div className="w-full border border-[#E08A8A] bg-[#FFF5F5] rounded-md py-1 px-1 text-center">
                             <span className="text-[10px] text-[#D9534F] font-light block leading-tight">เอกสารไม่ถูกต้อง</span>
                           </div>
                         ) : (
                           <button
-                            id="btn-view-doc"
                             type="button"
-                            onClick={() => setIsPreviewActive(true)}
-                            className="w-full border border-[#C8C1B6] hover:border-[#8C8176] hover:bg-[#F5F2EC] rounded-md py-1 px-1 text-center transition cursor-pointer"
+                            onClick={() => loadDocumentPreview(item)}
+                            className={`w-full border rounded-md py-1 px-1 text-center transition cursor-pointer ${
+                              isActive
+                                ? 'bg-[#8C8176] text-white border-[#8C8176]'
+                                : 'border-[#C8C1B6] hover:border-[#8C8176] hover:bg-[#F5F2EC] text-[#554E45]'
+                            }`}
                           >
-                            <span className="text-[11px] text-[#554E45] font-light">ดูเอกสาร</span>
+                            <span className="text-[11px] font-light">
+                              {isActive ? 'กำลังดู' : 'ดูเอกสาร'}
+                            </span>
                           </button>
                         )}
                       </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
-            <div className="pt-8 mt-auto">
+            {/* Sticky Bottom Action Button */}
+            <div className="pt-4 pb-2 mt-auto border-t border-[#EFECE6] bg-[#FAF8F5] shrink-0 sticky bottom-0">
               <button
-                id="btn-submit"
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitting || !isFormValid}
@@ -442,29 +544,44 @@
             </div>
           </div>
 
-          <div className="w-full md:w-[65%] lg:w-[67%] min-h-screen bg-[#F4F2EE] flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-auto">
-            <div className="w-full max-w-[620px] flex flex-col items-center">
+          {/* Right Canvas Area with Pan (Mouse Drag) & Zoom */}
+          <div
+            className="w-full md:w-[65%] lg:w-[67%] min-h-screen bg-[#F4F2EE] flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden select-none"
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+          >
+            <div className="w-full max-w-[640px] flex flex-col items-center">
               <div className="w-full flex items-center justify-between text-xs text-[#70675D] px-2 py-2 mb-1">
                 <div className="flex items-center gap-2">
                   <button
-                    id="btn-zoom-out"
                     type="button"
                     onClick={handleZoomOut}
                     disabled={zoom <= 50}
-                    className="hover:text-black transition px-1.5 py-0.5 rounded hover:bg-[#EAE6DE] cursor-pointer disabled:opacity-30 disabled:cursor-default"
+                    className="hover:text-black px-2 py-1 rounded hover:bg-[#EAE6DE] cursor-pointer disabled:opacity-30"
+                    title="ย่อ"
                   >
                     -
                   </button>
-                  <span id="zoom-value" className="font-light">{zoom}%</span>
+                  <span className="min-w-[42px] text-center font-light">{zoom}%</span>
                   <button
-                    id="btn-zoom-in"
                     type="button"
                     onClick={handleZoomIn}
                     disabled={zoom >= 200}
-                    className="hover:text-black transition px-1.5 py-0.5 rounded hover:bg-[#EAE6DE] cursor-pointer disabled:opacity-30 disabled:cursor-default"
+                    className="hover:text-black px-2 py-1 rounded hover:bg-[#EAE6DE] cursor-pointer disabled:opacity-30"
+                    title="ขยาย"
                   >
                     +
                   </button>
+                  {zoom !== 100 && (
+                    <button
+                      type="button"
+                      onClick={() => { setZoom(100); setPanOffset({ x: 0, y: 0 }); }}
+                      className="text-[10px] text-[#70675D] hover:text-black underline ml-1 cursor-pointer"
+                      title="รีเซ็ตขนาด"
+                    >
+                      รีเซ็ต
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -473,20 +590,18 @@
                       type="button"
                       onClick={handlePrevPage}
                       disabled={currentPage <= 1}
-                      className="hover:text-black transition px-1 py-0.5 rounded hover:bg-[#EAE6DE] disabled:opacity-30 cursor-pointer"
+                      className="hover:text-black px-1.5 py-0.5 rounded hover:bg-[#EAE6DE] disabled:opacity-30 cursor-pointer"
                     >
                       ◀
                     </button>
                   )}
-                  <span id="page-indicator" className="font-light tracking-wide">
-                    หน้า {currentPage} จาก {totalPages}
-                  </span>
+                  <span>หน้า {currentPage} จาก {totalPages}</span>
                   {totalPages > 1 && (
                     <button
                       type="button"
                       onClick={handleNextPage}
                       disabled={currentPage >= totalPages}
-                      className="hover:text-black transition px-1 py-0.5 rounded hover:bg-[#EAE6DE] disabled:opacity-30 cursor-pointer"
+                      className="hover:text-black px-1.5 py-0.5 rounded hover:bg-[#EAE6DE] disabled:opacity-30 cursor-pointer"
                     >
                       ▶
                     </button>
@@ -494,42 +609,51 @@
                 </div>
 
                 <button
-                  id="btn-close-preview"
                   type="button"
                   onClick={handleClosePreview}
-                  className="text-[#70675D] hover:text-black hover:bg-[#EAE6DE] px-2 py-1 rounded transition text-sm cursor-pointer"
+                  className="text-[#70675D] hover:text-black hover:bg-[#EAE6DE] px-2 py-1 rounded cursor-pointer"
+                  title="ปิดการดูตัวอย่าง"
                 >
                   ✕
                 </button>
               </div>
 
-              <div className="w-full aspect-[1/1.414] min-h-[580px] bg-white rounded shadow-sm border border-[#E5E0D8] relative overflow-auto flex items-center justify-center">
-                {isPreviewActive && filePreviewUrl && !isUnsupported ? (
+              <div
+                ref={containerRef}
+                onMouseDown={handleMouseDown}
+                className={`w-full aspect-[1/1.414] min-h-[580px] bg-white rounded shadow-sm border border-[#E5E0D8] relative overflow-hidden flex items-center justify-center ${
+                  isPreviewActive ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
+                }`}
+              >
+                {isPreviewActive && activeFile && !activeFile.isUnsupported ? (
                   <div
-                    id="preview-canvas-content"
-                    className="w-full h-full flex items-center justify-center p-2"
+                    className="w-full h-full flex items-center justify-center p-2 transition-transform duration-75 origin-center"
+                    style={{
+                      transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom / 100})`
+                    }}
                   >
                     {isPdf ? (
-                      <canvas ref={canvasRef} className="max-w-full max-h-full object-contain shadow-xs bg-white" />
-                    ) : isImage ? (
+                      <canvas ref={canvasRef} className="max-w-full max-h-full object-contain shadow-xs bg-white pointer-events-none" />
+                    ) : isImage && activeFile.url ? (
                       <img
-                        src={filePreviewUrl}
-                        alt="Document Preview"
-                        className="max-w-full max-h-full object-contain shadow-xs transition-transform duration-200"
-                        style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center center' }}
+                        src={activeFile.url}
+                        alt="Preview"
+                        className="max-w-full max-h-full object-contain shadow-xs pointer-events-none"
                       />
-                    ) : (
-                      <iframe
-                        src={`${filePreviewUrl}#toolbar=0`}
-                        title="PDF Preview"
-                        className="w-full h-full border-0"
-                      />
-                    )}
+                    ) : null}
                   </div>
                 ) : (
-                  <span className="text-2xl sm:text-3xl font-light tracking-wide text-[#70675D]">Preview เอกสาร</span>
+                  <span className="text-2xl sm:text-3xl font-light tracking-wide text-[#70675D]">
+                    Preview เอกสาร
+                  </span>
                 )}
               </div>
+
+              {isPreviewActive && (
+                <p className="text-[11px] text-[#9E9689] mt-2 font-light">
+                  💡 คลิกเมาส์ค้างเพื่อลากเลื่อนดูเอกสาร (Pan & Drag)
+                </p>
+              )}
             </div>
           </div>
         </div>
