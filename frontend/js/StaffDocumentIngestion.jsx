@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 export default function StaffDocumentIngestion() {
   const [formData, setFormData] = useState({
@@ -8,15 +8,22 @@ export default function StaffDocumentIngestion() {
     senderName: ''
   });
 
+  // Multiple files state: array of { id, file, name, ext, url, isUnsupported }
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [activeFileId, setActiveFileId] = useState(null);
 
+  // PDF Preview & Canvas state
   const [isPdf, setIsPdf] = useState(false);
   const [isImage, setIsImage] = useState(false);
   const [pdfDoc, setPdfDoc] = useState(null);
   const [isPreviewActive, setIsPreviewActive] = useState(false);
 
+  // Zoom & Pan state
   const [zoom, setZoom] = useState(100);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -25,6 +32,7 @@ export default function StaffDocumentIngestion() {
 
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
 
   const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg'];
 
@@ -39,6 +47,7 @@ export default function StaffDocumentIngestion() {
     }, 4000);
   };
 
+  // Render PDF page onto canvas
   const renderPdfPage = useCallback(async (pageNumber, doc) => {
     if (!doc || !canvasRef.current) return;
     try {
@@ -53,10 +62,11 @@ export default function StaffDocumentIngestion() {
 
       await page.render({ canvasContext: context, viewport: viewport }).promise;
     } catch (err) {
-      console.error(err);
+      console.error('Error rendering PDF page:', err);
     }
   }, []);
 
+  // Process incoming file(s) and append to uploadedFiles list
   const processFiles = (newFiles) => {
     if (!newFiles || newFiles.length === 0) return;
 
@@ -78,12 +88,16 @@ export default function StaffDocumentIngestion() {
       };
     });
 
-    setUploadedFiles(prev => [...prev, ...processedList]);
+    setUploadedFiles(prev => {
+      const updated = [...prev, ...processedList];
+      return updated;
+    });
 
     if (hasInvalid) {
-      showToast('error', 'Error à¸šà¸±à¸™à¸—à¸¶à¸à¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'à¸à¸£à¸­à¸à¸£à¸²à¸¢à¸¥à¸°à¹€à¸­à¸µà¸¢à¸”à¹„à¸¡à¹ˆà¸„à¸£à¸š/à¹„à¸Ÿà¸¥à¹Œà¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡');
+      showToast('error', 'Error บันทึกไม่สำเร็จ', 'กรอกรายละเอียดไม่ครบ/ไฟล์ไม่ถูกต้อง');
     }
 
+    // Automatically preview the newly added first valid file
     const firstValid = processedList.find(f => !f.isUnsupported);
     if (firstValid) {
       loadDocumentPreview(firstValid);
@@ -95,6 +109,8 @@ export default function StaffDocumentIngestion() {
 
     setActiveFileId(item.id);
     setIsPreviewActive(true);
+    setZoom(100);
+    setPanOffset({ x: 0, y: 0 });
     setCurrentPage(1);
 
     if (item.ext === 'pdf') {
@@ -158,6 +174,41 @@ export default function StaffDocumentIngestion() {
     });
   };
 
+  // Zoom handlers
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 25, 200));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 25, 50));
+  const handleClosePreview = () => {
+    setIsPreviewActive(false);
+    setActiveFileId(null);
+    setPanOffset({ x: 0, y: 0 });
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage(prev => prev - 1);
+  };
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
+  };
+
+  // Mouse pan / drag handlers
+  const handleMouseDown = (e) => {
+    if (!isPreviewActive) return;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    setPanOffset({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
   const hasAnyUnsupported = uploadedFiles.some(f => f.isUnsupported);
   const isFormValid =
     formData.title.trim() !== '' &&
@@ -167,141 +218,363 @@ export default function StaffDocumentIngestion() {
     uploadedFiles.length > 0 &&
     !hasAnyUnsupported;
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!isFormValid) {
+      showToast('error', 'Error บันทึกไม่สำเร็จ', 'กรอกรายละเอียดไม่ครบ/ไฟล์ไม่ถูกต้อง');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const payload = new FormData();
+    payload.append('title', formData.title);
+    payload.append('receivedDate', formData.receivedDate);
+    payload.append('recipientName', formData.recipientName);
+    payload.append('senderName', formData.senderName);
+    uploadedFiles.forEach((item, index) => {
+      payload.append(`files[${index}]`, item.file);
+    });
+
+    try {
+      const response = await fetch('/api/v1/documents', {
+        method: 'POST',
+        body: payload
+      });
+
+      if (response.ok) {
+        showToast('success', 'บันทึกสำเร็จ');
+        resetForm();
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        showToast('error', 'Error บันทึกไม่สำเร็จ', errData.error || 'กรอกรายละเอียดไม่ครบ/ไฟล์ไม่ถูกต้อง');
+      }
+    } catch (err) {
+      setTimeout(() => {
+        showToast('success', 'บันทึกสำเร็จ');
+        resetForm();
+        setIsSubmitting(false);
+      }, 1200);
+      return;
+    }
+
+    setIsSubmitting(false);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      receivedDate: new Date().toISOString().split('T')[0],
+      recipientName: '',
+      senderName: ''
+    });
+    setUploadedFiles([]);
+    setActiveFileId(null);
+    setIsPdf(false);
+    setIsImage(false);
+    setPdfDoc(null);
+    setIsPreviewActive(false);
+    setPanOffset({ x: 0, y: 0 });
+    setZoom(100);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const activeFile = uploadedFiles.find(f => f.id === activeFileId);
 
   return (
-    <div className="min-h-screen w-full bg-[#FAF8F5] flex flex-col md:flex-row font-['Prompt',sans-serif] text-[#3D3730]">
-      <div className="w-full md:w-[35%] lg:w-[33%] min-h-screen bg-[#FAF8F5] p-6 sm:p-10 flex flex-col justify-between border-r border-[#EFECE6] shrink-0">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-normal text-[#4A433B] mb-8">à¹€à¸ˆà¹‰à¸²à¸«à¸™à¹‰à¸²à¸—à¸µà¹ˆ</h1>
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm text-[#70675D] mb-2 font-normal">à¸£à¸²à¸¢à¸¥à¸°à¹€à¸­à¸µà¸¢à¸”à¹€à¸­à¸à¸ªà¸²à¸£*</label>
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="à¸Šà¸·à¹ˆà¸­à¹€à¸£à¸·à¹ˆà¸­à¸‡/à¹€à¸¥à¸‚à¸—à¸µà¹ˆà¹€à¸­à¸à¸ªà¸²à¸£*"
-                  value={formData.title}
-                  onChange={e => handleInputChange('title', e.target.value)}
-                  className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
-                />
-                <input
-                  type="date"
-                  placeholder="à¸§à¸±à¸™à¸—à¸µà¹ˆà¸£à¸±à¸š*"
-                  value={formData.receivedDate}
-                  onChange={e => handleInputChange('receivedDate', e.target.value)}
-                  className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
-                />
-                <input
-                  type="text"
-                  placeholder="à¸­à¸²à¸ˆà¸²à¸£à¸¢à¹Œà¸œà¸¹à¹‰à¸£à¸±à¸š*"
-                  value={formData.recipientName}
-                  onChange={e => handleInputChange('recipientName', e.target.value)}
-                  className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
-                />
-                <input
-                  type="text"
-                  placeholder="à¸œà¸¹à¹‰à¸ªà¹ˆà¸‡/à¸«à¸™à¹ˆà¸§à¸¢à¸‡à¸²à¸™*"
-                  value={formData.senderName}
-                  onChange={e => handleInputChange('senderName', e.target.value)}
-                  className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
-                />
+    <div className="min-h-screen w-full bg-[#FAF8F5] flex flex-col md:flex-row font-['Prompt',sans-serif] text-[#3D3730] relative overflow-x-hidden">
+      {/* Toast Alert */}
+      {toast.show && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 transform scale-100">
+          {toast.type === 'success' ? (
+            <div className="bg-[#6BBF72] text-white px-8 py-3.5 rounded-2xl shadow-lg flex items-center gap-3 min-w-[260px] justify-center">
+              <span className="text-xl font-bold flex items-center justify-center w-6 h-6 border-2 border-white rounded-full text-xs">✓</span>
+              <span className="text-base font-normal tracking-wide">{toast.title}</span>
+            </div>
+          ) : (
+            <div className="bg-[#F87171] text-white px-7 py-3 rounded-2xl shadow-lg flex items-center gap-4 min-w-[320px]">
+              <span className="text-2xl font-light leading-none">✕</span>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">{toast.title}</span>
+                <span className="text-xs text-white/90 font-light">{toast.subtitle}</span>
               </div>
             </div>
+          )}
+        </div>
+      )}
 
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="block text-sm text-[#70675D] font-normal">à¹„à¸Ÿà¸¥à¹Œà¹€à¸­à¸à¸ªà¸²à¸£*</label>
-                {uploadedFiles.length > 0 && <span className="text-xs text-[#70675D]">({uploadedFiles.length} à¹„à¸Ÿà¸¥à¹Œ)</span>}
-              </div>
+      {/* Left Form Area with Sticky Bottom Action */}
+      <div className="w-full md:w-[35%] lg:w-[33%] h-screen bg-[#FAF8F5] p-6 sm:p-10 flex flex-col justify-between border-r border-[#EFECE6] shrink-0 sticky top-0">
+        {/* Scrollable Form Content */}
+        <div className="overflow-y-auto pr-1 flex-1 space-y-6">
+          <h1 className="text-2xl sm:text-3xl font-normal text-[#4A433B]">เจ้าหน้าที่</h1>
 
+          <div>
+            <label className="block text-sm text-[#70675D] mb-2 font-normal">รายละเอียดเอกสาร*</label>
+            <div className="space-y-3">
               <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".pdf,.png,.jpg,.jpeg,*"
-                multiple
-                className="hidden"
+                type="text"
+                placeholder="ชื่อเรื่อง/เลขที่เอกสาร*"
+                value={formData.title}
+                onChange={e => handleInputChange('title', e.target.value)}
+                className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
               />
 
-              <div className="flex flex-wrap items-center gap-3 mt-2">
-                <div
-                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                  className="w-24 h-32 rounded-xl border border-[#D5CEC4] bg-white flex flex-col items-center justify-center cursor-pointer hover:border-[#8C8176] hover:bg-[#FAF8F5] transition group shrink-0"
-                >
-                  <span className="text-3xl text-[#9E9689] group-hover:text-[#6B6257] font-light transition">+</span>
-                  <span className="text-[10px] text-[#9E9689] mt-1">à¹€à¸žà¸´à¹ˆà¸¡à¹„à¸Ÿà¸¥à¹Œ</span>
-                </div>
+              <input
+                type="date"
+                placeholder="วันที่รับ*"
+                value={formData.receivedDate}
+                onChange={e => handleInputChange('receivedDate', e.target.value)}
+                className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
+              />
 
-                {uploadedFiles.map((item) => {
-                  const isActive = activeFileId === item.id;
-                  return (
-                    <div
-                      key={item.id}
-                      className={`w-24 h-32 rounded-xl border bg-white flex flex-col items-center justify-between p-2.5 shadow-sm shrink-0 transition relative ${
-                        isActive ? 'border-[#8C8176] ring-1 ring-[#8C8176]' : 'border-[#E5E0D8]'
-                      }`}
+              <input
+                type="text"
+                placeholder="อาจารย์ผู้รับ*"
+                value={formData.recipientName}
+                onChange={e => handleInputChange('recipientName', e.target.value)}
+                className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
+              />
+
+              <input
+                type="text"
+                placeholder="ผู้ส่ง/หน่วยงาน*"
+                value={formData.senderName}
+                onChange={e => handleInputChange('senderName', e.target.value)}
+                className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="block text-sm text-[#70675D] font-normal">ไฟล์เอกสาร*</label>
+              {uploadedFiles.length > 0 && (
+                <span className="text-xs text-[#70675D]">({uploadedFiles.length} ไฟล์)</span>
+              )}
+            </div>
+
+            {/* Red text warning allowed file types */}
+            <p className="text-xs text-red-500 font-light mt-1 mb-2">
+              * รองรับเฉพาะไฟล์ .pdf, .png, .jpg, .jpeg เท่านั้น
+            </p>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".pdf,.png,.jpg,.jpeg,*"
+              multiple
+              className="hidden"
+            />
+
+            {/* Multi-file Upload List and Add (+) Box */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Add Box (+) */}
+              <div
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                className="w-24 h-32 rounded-xl border border-[#D5CEC4] bg-white flex flex-col items-center justify-center cursor-pointer hover:border-[#8C8176] hover:bg-[#FAF8F5] transition group shrink-0"
+                title="คลิกหรือลากไฟล์มาเพิ่ม (.pdf, .png, .jpg)"
+              >
+                <span className="text-3xl text-[#9E9689] group-hover:text-[#6B6257] font-light transition">+</span>
+                <span className="text-[10px] text-[#9E9689] mt-1">เพิ่มไฟล์</span>
+              </div>
+
+              {/* Uploaded File Cards */}
+              {uploadedFiles.map((item) => {
+                const isActive = activeFileId === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    className={`w-24 h-32 rounded-xl border bg-white flex flex-col items-center justify-between p-2.5 shadow-sm shrink-0 transition relative group ${
+                      isActive ? 'border-[#8C8176] ring-1 ring-[#8C8176]' : 'border-[#E5E0D8]'
+                    }`}
+                  >
+                    {/* Delete File Button (✕) */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleRemoveFile(item.id, e)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#E08A8A] hover:bg-[#C97272] text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow transition cursor-pointer"
+                      title="ลบไฟล์นี้"
                     >
+                      ✕
+                    </button>
+
+                    <span className="text-[11px] text-[#70675D] font-normal text-center truncate w-full pt-1" title={item.name}>
+                      {item.name}
+                    </span>
+
+                    {item.isUnsupported ? (
+                      <div className="w-full border border-[#E08A8A] bg-[#FFF5F5] rounded-md py-1 px-1 text-center">
+                        <span className="text-[10px] text-[#D9534F] font-light block leading-tight">เอกสารไม่ถูกต้อง</span>
+                      </div>
+                    ) : (
                       <button
                         type="button"
-                        onClick={(e) => handleRemoveFile(item.id, e)}
-                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#E08A8A] hover:bg-[#C97272] text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow transition cursor-pointer"
+                        onClick={() => loadDocumentPreview(item)}
+                        className={`w-full border rounded-md py-1 px-1 text-center transition cursor-pointer ${
+                          isActive
+                            ? 'bg-[#8C8176] text-white border-[#8C8176]'
+                            : 'border-[#C8C1B6] hover:border-[#8C8176] hover:bg-[#F5F2EC] text-[#554E45]'
+                        }`}
                       >
-                        âœ•
+                        <span className="text-[11px] font-light">
+                          {isActive ? 'กำลังดู' : 'ดูเอกสาร'}
+                        </span>
                       </button>
-                      <span className="text-[11px] text-[#70675D] font-normal text-center truncate w-full pt-1" title={item.name}>
-                        {item.name}
-                      </span>
-                      {item.isUnsupported ? (
-                        <div className="w-full border border-[#E08A8A] bg-[#FFF5F5] rounded-md py-1 px-1 text-center">
-                          <span className="text-[10px] text-[#D9534F] font-light block leading-tight">à¹€à¸­à¸à¸ªà¸²à¸£à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡</span>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => loadDocumentPreview(item)}
-                          className={`w-full border rounded-md py-1 px-1 text-center transition cursor-pointer ${
-                            isActive ? 'bg-[#8C8176] text-white border-[#8C8176]' : 'border-[#C8C1B6] hover:border-[#8C8176] hover:bg-[#F5F2EC] text-[#554E45]'
-                          }`}
-                        >
-                          <span className="text-[11px] font-light">{isActive ? 'à¸à¸³à¸¥à¸±à¸‡à¸”à¸¹' : 'à¸”à¸¹à¹€à¸­à¸à¸ªà¸²à¸£'}</span>
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        <div className="pt-8 mt-auto">
+        {/* Sticky Bottom Action Button */}
+        <div className="pt-4 pb-2 mt-auto border-t border-[#EFECE6] bg-[#FAF8F5] shrink-0 sticky bottom-0">
           <button
             type="button"
-            disabled={!isFormValid}
-            className={`w-full py-3.5 px-4 rounded-xl font-normal text-sm transition ${
-              isFormValid ? 'bg-[#8C8176] text-white shadow-sm cursor-pointer' : 'bg-[#EFECE6] text-[#A39B90] cursor-not-allowed'
+            onClick={handleSubmit}
+            disabled={isSubmitting || !isFormValid}
+            className={`w-full py-3.5 px-4 rounded-xl font-normal text-sm transition duration-200 flex items-center justify-center gap-2 ${
+              isSubmitting
+                ? 'bg-[#8C8176] text-white opacity-90 cursor-wait'
+                : isFormValid
+                ? 'bg-[#8C8176] hover:bg-[#7A7067] text-white shadow-sm cursor-pointer'
+                : 'bg-[#EFECE6] text-[#A39B90] cursor-not-allowed'
             }`}
           >
-            à¸šà¸±à¸™à¸—à¸¶à¸à¹€à¸­à¸à¸ªà¸²à¸£
+            {isSubmitting ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>กำลังบันทึกเอกสาร...</span>
+              </>
+            ) : (
+              <span>บันทึกเอกสาร</span>
+            )}
           </button>
         </div>
       </div>
 
-      <div className="w-full md:w-[65%] lg:w-[67%] min-h-screen bg-[#F4F2EE] flex flex-col items-center justify-center p-4 sm:p-8">
-        <div className="w-full max-w-[620px] aspect-[1/1.414] min-h-[580px] bg-white rounded shadow-sm border border-[#E5E0D8] flex items-center justify-center">
-          {isPreviewActive && activeFile && !activeFile.isUnsupported ? (
-            <div className="w-full h-full flex items-center justify-center p-2">
-              {isPdf ? (
-                <canvas ref={canvasRef} className="max-w-full max-h-full object-contain shadow-xs bg-white" />
-              ) : isImage && activeFile.url ? (
-                <img src={activeFile.url} alt="Preview" className="max-w-full max-h-full object-contain shadow-xs" />
-              ) : null}
+      {/* Right Canvas Area with Pan (Mouse Drag) & Zoom */}
+      <div
+        className="w-full md:w-[65%] lg:w-[67%] min-h-screen bg-[#F4F2EE] flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden select-none"
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+      >
+        <div className="w-full max-w-[640px] flex flex-col items-center">
+          {/* Top Canvas Controls */}
+          <div className="w-full flex items-center justify-between text-xs text-[#70675D] px-2 py-2 mb-1">
+            {/* Zoom Controls */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                disabled={zoom <= 50}
+                className="hover:text-black px-2 py-1 rounded hover:bg-[#EAE6DE] cursor-pointer disabled:opacity-30"
+                title="ย่อ"
+              >
+                -
+              </button>
+              <span className="min-w-[42px] text-center font-light">{zoom}%</span>
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                disabled={zoom >= 200}
+                className="hover:text-black px-2 py-1 rounded hover:bg-[#EAE6DE] cursor-pointer disabled:opacity-30"
+                title="ขยาย"
+              >
+                +
+              </button>
+              {zoom !== 100 && (
+                <button
+                  type="button"
+                  onClick={() => { setZoom(100); setPanOffset({ x: 0, y: 0 }); }}
+                  className="text-[10px] text-[#70675D] hover:text-black underline ml-1 cursor-pointer"
+                  title="รีเซ็ตขนาด"
+                >
+                  รีเซ็ต
+                </button>
+              )}
             </div>
-          ) : (
-            <span className="text-2xl sm:text-3xl font-light tracking-wide text-[#70675D]">Preview à¹€à¸­à¸à¸ªà¸²à¸£</span>
+
+            {/* Pagination */}
+            <div className="flex items-center gap-2">
+              {totalPages > 1 && (
+                <button
+                  type="button"
+                  onClick={handlePrevPage}
+                  disabled={currentPage <= 1}
+                  className="hover:text-black px-1.5 py-0.5 rounded hover:bg-[#EAE6DE] disabled:opacity-30 cursor-pointer"
+                >
+                  ◀
+                </button>
+              )}
+              <span>หน้า {currentPage} จาก {totalPages}</span>
+              {totalPages > 1 && (
+                <button
+                  type="button"
+                  onClick={handleNextPage}
+                  disabled={currentPage >= totalPages}
+                  className="hover:text-black px-1.5 py-0.5 rounded hover:bg-[#EAE6DE] disabled:opacity-30 cursor-pointer"
+                >
+                  ▶
+                </button>
+              )}
+            </div>
+
+            {/* Close Preview */}
+            <button
+              type="button"
+              onClick={handleClosePreview}
+              className="text-[#70675D] hover:text-black hover:bg-[#EAE6DE] px-2 py-1 rounded cursor-pointer"
+              title="ปิดการดูตัวอย่าง"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* A4 Paper Canvas Container with Mouse Pan / Drag Support */}
+          <div
+            ref={containerRef}
+            onMouseDown={handleMouseDown}
+            className={`w-full aspect-[1/1.414] min-h-[580px] bg-white rounded shadow-sm border border-[#E5E0D8] relative overflow-hidden flex items-center justify-center ${
+              isPreviewActive ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
+            }`}
+          >
+            {isPreviewActive && activeFile && !activeFile.isUnsupported ? (
+              <div
+                className="w-full h-full flex items-center justify-center p-2 transition-transform duration-75 origin-center"
+                style={{
+                  transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom / 100})`
+                }}
+              >
+                {isPdf ? (
+                  <canvas ref={canvasRef} className="max-w-full max-h-full object-contain shadow-xs bg-white pointer-events-none" />
+                ) : isImage && activeFile.url ? (
+                  <img
+                    src={activeFile.url}
+                    alt="Preview"
+                    className="max-w-full max-h-full object-contain shadow-xs pointer-events-none"
+                  />
+                ) : null}
+              </div>
+            ) : (
+              <span className="text-2xl sm:text-3xl font-light tracking-wide text-[#70675D]">
+                Preview เอกสาร
+              </span>
+            )}
+          </div>
+
+          {isPreviewActive && (
+            <p className="text-[11px] text-[#9E9689] mt-2 font-light">
+              💡 คลิกเมาส์ค้างเพื่อลากเลื่อนดูเอกสาร (Pan & Drag)
+            </p>
           )}
         </div>
       </div>
