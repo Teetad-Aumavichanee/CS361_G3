@@ -19,12 +19,20 @@ export default function StaffDocumentIngestion() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState({ show: false, type: '', title: '', subtitle: '' });
+
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
   const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg'];
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const showToast = (type, title, subtitle = '') => {
+    setToast({ show: true, type, title, subtitle });
+    setTimeout(() => setToast({ show: false, type: '', title: '', subtitle: '' }), 4000);
   };
 
   const renderPdfPage = useCallback(async (pageNumber, doc, zoomLevel) => {
@@ -64,6 +72,7 @@ export default function StaffDocumentIngestion() {
       setPdfDoc(null);
       setIsPdf(false);
       setIsImage(false);
+      showToast('error', 'Error à¸šà¸±à¸™à¸—à¸¶à¸à¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'à¸à¸£à¸­à¸à¸£à¸²à¸¢à¸¥à¸°à¹€à¸­à¸µà¸¢à¸”à¹„à¸¡à¹ˆà¸„à¸£à¸š/à¹„à¸Ÿà¸¥à¹Œà¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡');
     } else {
       setIsUnsupported(false);
       const url = URL.createObjectURL(file);
@@ -117,8 +126,40 @@ export default function StaffDocumentIngestion() {
     selectedFile !== null &&
     !isUnsupported;
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!isFormValid) {
+      showToast('error', 'Error à¸šà¸±à¸™à¸—à¸¶à¸à¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ', 'à¸à¸£à¸­à¸à¸£à¸²à¸¢à¸¥à¸°à¹€à¸­à¸µà¸¢à¸”à¹„à¸¡à¹ˆà¸„à¸£à¸š/à¹„à¸Ÿà¸¥à¹Œà¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡');
+      return;
+    }
+    setIsSubmitting(true);
+    setTimeout(() => {
+      showToast('success', 'à¸šà¸±à¸™à¸—à¸¶à¸à¸ªà¸³à¹€à¸£à¹‡à¸ˆ');
+      setIsSubmitting(false);
+    }, 1200);
+  };
+
   return (
-    <div className="min-h-screen w-full bg-[#FAF8F5] flex flex-col md:flex-row font-['Prompt',sans-serif] text-[#3D3730]">
+    <div className="min-h-screen w-full bg-[#FAF8F5] flex flex-col md:flex-row font-['Prompt',sans-serif] text-[#3D3730] relative overflow-x-hidden">
+      {toast.show && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 transform scale-100">
+          {toast.type === 'success' ? (
+            <div className="bg-[#6BBF72] text-white px-8 py-3.5 rounded-2xl shadow-lg flex items-center gap-3 min-w-[260px] justify-center">
+              <span className="text-xl font-bold flex items-center justify-center w-6 h-6 border-2 border-white rounded-full text-xs">âœ“</span>
+              <span className="text-base font-normal tracking-wide">{toast.title}</span>
+            </div>
+          ) : (
+            <div className="bg-[#F87171] text-white px-7 py-3 rounded-2xl shadow-lg flex items-center gap-4 min-w-[320px]">
+              <span className="text-2xl font-light leading-none">âœ•</span>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">{toast.title}</span>
+                <span className="text-xs text-white/90 font-light">{toast.subtitle}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="w-full md:w-[35%] lg:w-[33%] min-h-screen bg-[#FAF8F5] p-6 sm:p-10 flex flex-col justify-between border-r border-[#EFECE6] shrink-0">
         <div>
           <h1 className="text-2xl sm:text-3xl font-normal text-[#4A433B] mb-8">à¹€à¸ˆà¹‰à¸²à¸«à¸™à¹‰à¸²à¸—à¸µà¹ˆ</h1>
@@ -205,14 +246,27 @@ export default function StaffDocumentIngestion() {
         <div className="pt-8 mt-auto">
           <button
             type="button"
-            disabled={!isFormValid}
-            className={`w-full py-3.5 px-4 rounded-xl font-normal text-sm transition ${
-              isFormValid
+            onClick={handleSubmit}
+            disabled={isSubmitting || !isFormValid}
+            className={`w-full py-3.5 px-4 rounded-xl font-normal text-sm transition duration-200 flex items-center justify-center gap-2 ${
+              isSubmitting
+                ? 'bg-[#8C8176] text-white opacity-90 cursor-wait'
+                : isFormValid
                 ? 'bg-[#8C8176] hover:bg-[#7A7067] text-white shadow-sm cursor-pointer'
                 : 'bg-[#EFECE6] text-[#A39B90] cursor-not-allowed'
             }`}
           >
-            à¸šà¸±à¸™à¸—à¸¶à¸à¹€à¸­à¸à¸ªà¸²à¸£
+            {isSubmitting ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>à¸à¸³à¸¥à¸±à¸‡à¸šà¸±à¸™à¸—à¸¶à¸à¹€à¸­à¸à¸ªà¸²à¸£...</span>
+              </>
+            ) : (
+              <span>à¸šà¸±à¸™à¸—à¸¶à¸à¹€à¸­à¸à¸ªà¸²à¸£</span>
+            )}
           </button>
         </div>
       </div>
