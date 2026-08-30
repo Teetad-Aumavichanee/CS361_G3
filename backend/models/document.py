@@ -89,6 +89,90 @@ class Document:
             document["_id"] = self.id
         return document
 
+    # Insert this new model into MongoDB and keep the generated _id.
+    def create(self):
+        """Insert the model and return this model with its MongoDB id."""
+        if self.id is not None:
+            raise ValueError("Cannot create a document that already has an id")
+
+        result = self.collection.insert_one(self.to_mongo())
+        self.id = result.inserted_id
+        return self
+
+    # Find one document by its MongoDB id.
+    @classmethod
+    def find_by_id(cls, document_id):
+        """Return a matching model or None when it does not exist."""
+        object_id = cls._to_object_id(document_id)
+        document = cls.collection.find_one({"_id": object_id})
+        return cls.from_mongo(document) if document else None
+
+    # Read all registered documents from the collection.
+    @classmethod
+    def find_all(cls):
+        """Return all registered document models."""
+        return [cls.from_mongo(document) for document in cls.collection.find()]
+
+    # Validate and update one or more editable fields of an existing document.
+    def update(self, **changes):
+        """Update this model and return whether its record was found."""
+        if self.id is None:
+            raise ValueError("Cannot update a document without an id")
+
+        editable_fields = {
+            "document_type_id",
+            "title",
+            "file_path",
+            "file_name",
+            "file_type",
+            "file_size",
+            "uploaded_at",
+            "uploaded_by",
+        }
+        unknown_fields = set(changes) - editable_fields
+        if unknown_fields:
+            raise ValueError(
+                "Unsupported document fields: "
+                + ", ".join(sorted(unknown_fields))
+            )
+
+        # Build a complete candidate model so every update uses the same
+        # validation rules as a newly created document.
+        values = {
+            "document_type_id": self.document_type_id,
+            "title": self.title,
+            "file_path": self.file_path,
+            "file_name": self.file_name,
+            "file_type": self.file_type,
+            "file_size": self.file_size,
+            "uploaded_at": self.uploaded_at,
+            "uploaded_by": self.uploaded_by,
+        }
+        values.update(changes)
+        updated_model = Document(document_id=self.id, **values)
+        mongo_document = updated_model.to_mongo()
+        mongo_document.pop("_id")
+
+        result = self.collection.update_one(
+            {"_id": self.id},
+            {"$set": mongo_document},
+        )
+
+        if result.matched_count:
+            # Keep this Python object synchronized with the saved values.
+            self.__dict__.update(updated_model.__dict__)
+            return True
+        return False
+
+    # Delete this document from MongoDB.
+    def delete(self):
+        """Delete this model and return whether a record was removed."""
+        if self.id is None:
+            raise ValueError("Cannot delete a document without an id")
+
+        result = self.collection.delete_one({"_id": self.id})
+        return result.deleted_count == 1
+
     # Convert a MongoDB result back into a Python model instance.
     @classmethod
     def from_mongo(cls, document):
