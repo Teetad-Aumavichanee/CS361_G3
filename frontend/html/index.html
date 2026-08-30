@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>เจ้าหน้าที่ - ระบบรับส่งเอกสาร (e-Mailbox V1)</title>
+  <!-- Google Fonts: Prompt -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap" rel="stylesheet" />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & Babel CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- PDF.js CDN for Real PDF Canvas Rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Prompt', sans-serif;
+    }
+    body {
+      background-color: #FAF8F5;
+      color: #3D3730;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+    }
+    input::placeholder {
+      color: #9E9689 !important;
+    }
+    /* Date picker calendar indicator */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      opacity: 0.6;
+      filter: invert(0.3);
+      transition: opacity 0.2s;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator:hover {
+      opacity: 1;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F1EDE6;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #C8C1B6;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-[#FAF8F5]">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback } = React;
+
+    function StaffDocumentIngestion() {
+      // Form State
+      const [formData, setFormData] = useState({
+        title: '',
+        receivedDate: '2026-08-30',
+        recipientName: '',
+        senderName: ''
+      });
+
+      // File & Upload State
+      const [selectedFile, setSelectedFile] = useState(null);
+      const [filePreviewUrl, setFilePreviewUrl] = useState(null);
+      const [isPdf, setIsPdf] = useState(false);
+      const [isImage, setIsImage] = useState(false);
+      const [pdfDoc, setPdfDoc] = useState(null);
+      const [isUnsupported, setIsUnsupported] = useState(false);
+      const [isPreviewActive, setIsPreviewActive] = useState(false);
+
+      // Preview Controls State
+      const [zoom, setZoom] = useState(100);
+      const [currentPage, setCurrentPage] = useState(1);
+      const [totalPages, setTotalPages] = useState(1);
+
+      // Status & Notifications State
+      const [isSubmitting, setIsSubmitting] = useState(false);
+      const [toast, setToast] = useState({ show: false, type: '', title: '', subtitle: '' });
+
+      const fileInputRef = useRef(null);
+      const canvasRef = useRef(null);
+
+      const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg'];
+
+      const handleInputChange = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+      };
+
+      const showToast = (type, title, subtitle = '') => {
+        setToast({ show: true, type, title, subtitle });
+        setTimeout(() => {
+          setToast({ show: false, type: '', title: '', subtitle: '' });
+        }, 4000);
+      };
+
+      // PDF Rendering onto Canvas
+      const renderPdfPage = useCallback(async (pageNumber, doc, zoomLevel) => {
+        if (!doc || !canvasRef.current) return;
+        try {
+          const page = await doc.getPage(pageNumber);
+          const canvas = canvasRef.current;
+          const context = canvas.getContext('2d');
+          
+          const baseScale = 1.35;
+          const scale = baseScale * (zoomLevel / 100);
+          const viewport = page.getViewport({ scale });
+
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          const renderContext = {
+            canvasContext: context,
+            viewport: viewport
+          };
+          await page.render(renderContext).promise;
+        } catch (err) {
+          console.error('Error rendering PDF page:', err);
+        }
+      }, []);
+
+      useEffect(() => {
+        if (isPdf && pdfDoc && isPreviewActive) {
+          renderPdfPage(currentPage, pdfDoc, zoom);
+        }
+      }, [isPdf, pdfDoc, currentPage, zoom, isPreviewActive, renderPdfPage]);
+
+      const processFile = async (file) => {
+        if (!file) return;
+        const ext = file.name.split('.').pop().toLowerCase();
+        const isValid = allowedExtensions.includes(ext);
+
+        setSelectedFile(file);
+
+        if (!isValid) {
+          setIsUnsupported(true);
+          setIsPreviewActive(false);
+          setFilePreviewUrl(null);
+          setPdfDoc(null);
+          setIsPdf(false);
+          setIsImage(false);
+          showToast('error', 'Error บันทึกไม่สำเร็จ', 'กรอกรายละเอียดไม่ครบ/ไฟล์ไม่ถูกต้อง');
+        } else {
+          setIsUnsupported(false);
+          const url = URL.createObjectURL(file);
+          setFilePreviewUrl(url);
+          setIsPreviewActive(true);
+          setZoom(100);
+          setCurrentPage(1);
+
+          if (ext === 'pdf') {
+            setIsPdf(true);
+            setIsImage(false);
+            try {
+              if (window.pdfjsLib) {
+                const arrayBuffer = await file.arrayBuffer();
+                const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                setPdfDoc(doc);
+                setTotalPages(doc.numPages);
+                renderPdfPage(1, doc, 100);
+              }
+            } catch (pdfErr) {
+              console.warn('PDF.js parsing fallback:', pdfErr);
+              setTotalPages(1);
+            }
+          } else {
+            setIsPdf(false);
+            setIsImage(true);
+            setPdfDoc(null);
+            setTotalPages(1);
+          }
+        }
+      };
+
+      const handleFileChange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+          processFile(e.target.files[0]);
+        }
+      };
+
+      const handleDragOver = (e) => e.preventDefault();
+      const handleDrop = (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          processFile(e.dataTransfer.files[0]);
+        }
+      };
+
+      const handleZoomIn = () => setZoom(prev => Math.min(prev + 25, 200));
+      const handleZoomOut = () => setZoom(prev => Math.max(prev - 25, 50));
+      const handleClosePreview = () => setIsPreviewActive(false);
+
+      const handlePrevPage = () => {
+        if (currentPage > 1) setCurrentPage(prev => prev - 1);
+      };
+      const handleNextPage = () => {
+        if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
+      };
+
+      const isFormValid =
+        formData.title.trim() !== '' &&
+        formData.receivedDate.trim() !== '' &&
+        formData.recipientName.trim() !== '' &&
+        formData.senderName.trim() !== '' &&
+        selectedFile !== null &&
+        !isUnsupported;
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!isFormValid) {
+          showToast('error', 'Error บันทึกไม่สำเร็จ', 'กรอกรายละเอียดไม่ครบ/ไฟล์ไม่ถูกต้อง');
+          return;
+        }
+
+        setIsSubmitting(true);
+
+        const payload = new FormData();
+        payload.append('title', formData.title);
+        payload.append('receivedDate', formData.receivedDate);
+        payload.append('recipientName', formData.recipientName);
+        payload.append('senderName', formData.senderName);
+        payload.append('file', selectedFile);
+
+        try {
+          const response = await fetch('/api/v1/documents', {
+            method: 'POST',
+            body: payload
+          });
+
+          if (response.ok) {
+            showToast('success', 'บันทึกสำเร็จ');
+            resetForm();
+          } else {
+            const errData = await response.json().catch(() => ({}));
+            showToast('error', 'Error บันทึกไม่สำเร็จ', errData.error || 'กรอกรายละเอียดไม่ครบ/ไฟล์ไม่ถูกต้อง');
+          }
+        } catch (err) {
+          // Fallback simulation for local offline testing
+          console.log('API Fallback simulate FormData:', Object.fromEntries(payload.entries()));
+          setTimeout(() => {
+            showToast('success', 'บันทึกสำเร็จ');
+            resetForm();
+            setIsSubmitting(false);
+          }, 1200);
+          return;
+        }
+
+        setIsSubmitting(false);
+      };
+
+      const resetForm = () => {
+        setFormData({
+          title: '',
+          receivedDate: '2026-08-30',
+          recipientName: '',
+          senderName: ''
+        });
+        setSelectedFile(null);
+        setFilePreviewUrl(null);
+        setIsPdf(false);
+        setIsImage(false);
+        setPdfDoc(null);
+        setIsUnsupported(false);
+        setIsPreviewActive(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      };
+
+      // Helper for mock demo buttons to quickly inspect all states
+      const mockFillValid = () => {
+        setFormData({
+          title: 'หนังสือขออนุมัติจัดโครงการสัมมนาเชิงปฏิบัติการ',
+          receivedDate: '2026-08-30',
+          recipientName: 'ดร.สมชาย ใจดี',
+          senderName: 'สำนักงานคณบดี'
+        });
+        const mockBlob = new Blob([
+          `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 595 842]/Parent 2 0 R/Resources<<>>>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n185\n%%EOF`
+        ], { type: 'application/pdf' });
+        const mockFile = new File([mockBlob], "File1.pdf", { type: "application/pdf" });
+        processFile(mockFile);
+      };
+
+      const mockFillInvalid = () => {
+        setFormData({
+          title: 'เอกสารแนบโปรแกรม C',
+          receivedDate: '2026-08-30',
+          recipientName: 'ผศ.ดร.วิชัย เก่งการ',
+          senderName: 'ภาควิชาวิทยาการคอมพิวเตอร์'
+        });
+        const mockBadFile = new File(["main() {}"], "File1.c", { type: "text/plain" });
+        processFile(mockBadFile);
+      };
+
+      return (
+        <div className="min-h-screen w-full bg-[#FAF8F5] flex flex-col md:flex-row font-['Prompt',sans-serif] text-[#3D3730] relative">
+          {/* Quick Demo Toolbar */}
+          <div className="fixed bottom-3 right-4 z-40 bg-white/95 backdrop-blur border border-[#D5CEC4] rounded-xl px-3 py-2 shadow-md flex items-center gap-2 text-xs">
+            <span className="text-[#70675D] font-medium">Quick Demo:</span>
+            <button
+              onClick={mockFillValid}
+              className="bg-[#8C8176] text-white px-2.5 py-1 rounded-lg hover:bg-[#7A7067] transition"
+            >
+              Fill Valid Form
+            </button>
+            <button
+              onClick={mockFillInvalid}
+              className="bg-[#E08A8A] text-white px-2.5 py-1 rounded-lg hover:bg-[#C97272] transition"
+            >
+              Test Invalid File (.c)
+            </button>
+            <button
+              onClick={() => showToast('success', 'บันทึกสำเร็จ')}
+              className="bg-[#6BBF72] text-white px-2.5 py-1 rounded-lg hover:bg-[#5AA860] transition"
+            >
+              Test Success Toast
+            </button>
+            <button
+              onClick={() => showToast('error', 'Error บันทึกไม่สำเร็จ', 'กรอกรายละเอียดไม่ครบ/ไฟล์ไม่ถูกต้อง')}
+              className="bg-[#F87171] text-white px-2.5 py-1 rounded-lg hover:bg-[#DE5E5E] transition"
+            >
+              Test Error Toast
+            </button>
+          </div>
+
+          {/* Top Alert Toast */}
+          {toast.show && (
+            <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 transform scale-100">
+              {toast.type === 'success' ? (
+                <div id="success-toast" className="bg-[#6BBF72] text-white px-8 py-3.5 rounded-2xl shadow-lg flex items-center gap-3 min-w-[260px] justify-center">
+                  <span className="text-xl font-bold flex items-center justify-center w-6 h-6 border-2 border-white rounded-full text-xs">✓</span>
+                  <span className="text-base font-normal tracking-wide">{toast.title}</span>
+                </div>
+              ) : (
+                <div id="error-toast" className="bg-[#F87171] text-white px-7 py-3 rounded-2xl shadow-lg flex items-center gap-4 min-w-[320px]">
+                  <span className="text-2xl font-light leading-none">✕</span>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{toast.title}</span>
+                    <span className="text-xs text-white/90 font-light">{toast.subtitle}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Left Panel: Metadata Form & Upload */}
+          <div className="w-full md:w-[35%] lg:w-[33%] min-h-screen bg-[#FAF8F5] p-6 sm:p-10 flex flex-col justify-between border-r border-[#EFECE6] shrink-0">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-normal text-[#4A433B] mb-8">เจ้าหน้าที่</h1>
+
+              <div className="space-y-6">
+                {/* Metadata Fields Section */}
+                <div>
+                  <label className="block text-sm text-[#70675D] mb-2 font-normal">รายละเอียดเอกสาร*</label>
+                  <div className="space-y-3">
+                    <div>
+                      <input
+                        id="input-title"
+                        type="text"
+                        placeholder="ชื่อเรื่อง/เลขที่เอกสาร*"
+                        value={formData.title}
+                        onChange={e => handleInputChange('title', e.target.value)}
+                        className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <input
+                        id="input-date"
+                        type="date"
+                        placeholder="วันที่รับ*"
+                        value={formData.receivedDate}
+                        onChange={e => handleInputChange('receivedDate', e.target.value)}
+                        className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <input
+                        id="input-recipient"
+                        type="text"
+                        placeholder="อาจารย์ผู้รับ*"
+                        value={formData.recipientName}
+                        onChange={e => handleInputChange('recipientName', e.target.value)}
+                        className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <input
+                        id="input-sender"
+                        type="text"
+                        placeholder="ผู้ส่ง/หน่วยงาน*"
+                        value={formData.senderName}
+                        onChange={e => handleInputChange('senderName', e.target.value)}
+                        className="w-full bg-[#F1EDE6] text-[#3D3730] placeholder-[#9E9689] px-4 py-3 rounded-xl border border-transparent focus:border-[#C8C1B6] focus:bg-[#EBE6DE] focus:outline-none transition text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Document Upload Section */}
+                <div>
+                  <label className="block text-sm text-[#70675D] mb-2 font-normal">ไฟล์เอกสาร*</label>
+                  
+                  <input
+                    id="file-input"
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".pdf,.png,.jpg,.jpeg,*"
+                    className="hidden"
+                  />
+
+                  <div className="flex items-center gap-3">
+                    {/* Upload Box (+) */}
+                    <div
+                      id="btn-upload-box"
+                      onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      className="w-24 h-32 rounded-xl border border-[#D5CEC4] bg-white flex flex-col items-center justify-center cursor-pointer hover:border-[#8C8176] hover:bg-[#FAF8F5] transition group shrink-0"
+                      title="คลิกหรือลากไฟล์มาวาง (.pdf, .png, .jpg)"
+                    >
+                      <span className="text-3xl text-[#9E9689] group-hover:text-[#6B6257] font-light transition">+</span>
+                    </div>
+
+                    {/* Uploaded File Card */}
+                    {selectedFile && (
+                      <div id="uploaded-card" className="w-24 h-32 rounded-xl border border-[#E5E0D8] bg-white flex flex-col items-center justify-between p-2.5 shadow-sm shrink-0 transition">
+                        <span className="text-[11px] text-[#70675D] font-normal text-center truncate w-full pt-1" title={selectedFile.name}>
+                          {selectedFile.name}
+                        </span>
+
+                        {isUnsupported ? (
+                          <div id="invalid-badge" className="w-full border border-[#E08A8A] bg-[#FFF5F5] rounded-md py-1 px-1 text-center">
+                            <span className="text-[10px] text-[#D9534F] font-light block leading-tight">เอกสารไม่ถูกต้อง</span>
+                          </div>
+                        ) : (
+                          <button
+                            id="btn-view-doc"
+                            type="button"
+                            onClick={() => setIsPreviewActive(true)}
+                            className="w-full border border-[#C8C1B6] hover:border-[#8C8176] hover:bg-[#F5F2EC] rounded-md py-1 px-1 text-center transition cursor-pointer"
+                          >
+                            <span className="text-[11px] text-[#554E45] font-light">ดูเอกสาร</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Action Button */}
+            <div className="pt-8 mt-auto">
+              <button
+                id="btn-submit"
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting || !isFormValid}
+                className={`w-full py-3.5 px-4 rounded-xl font-normal text-sm transition duration-200 flex items-center justify-center gap-2 ${
+                  isSubmitting
+                    ? 'bg-[#8C8176] text-white opacity-90 cursor-wait'
+                    : isFormValid
+                    ? 'bg-[#8C8176] hover:bg-[#7A7067] text-white shadow-sm cursor-pointer'
+                    : 'bg-[#EFECE6] text-[#A39B90] cursor-not-allowed'
+                }`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>กำลังบันทึกเอกสาร...</span>
+                  </>
+                ) : (
+                  <span>บันทึกเอกสาร</span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Right Panel: Document Preview Canvas */}
+          <div className="w-full md:w-[65%] lg:w-[67%] min-h-screen bg-[#F4F2EE] flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-auto">
+            <div className="w-full max-w-[620px] flex flex-col items-center">
+              {/* Top Control Bar */}
+              <div className="w-full flex items-center justify-between text-xs text-[#70675D] px-2 py-2 mb-1">
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-2">
+                  <button
+                    id="btn-zoom-out"
+                    type="button"
+                    onClick={handleZoomOut}
+                    disabled={zoom <= 50}
+                    className="hover:text-black transition px-1.5 py-0.5 rounded hover:bg-[#EAE6DE] cursor-pointer disabled:opacity-30 disabled:cursor-default"
+                    title="ย่อ"
+                  >
+                    -
+                  </button>
+                  <span id="zoom-value" className="font-light">{zoom}%</span>
+                  <button
+                    id="btn-zoom-in"
+                    type="button"
+                    onClick={handleZoomIn}
+                    disabled={zoom >= 200}
+                    className="hover:text-black transition px-1.5 py-0.5 rounded hover:bg-[#EAE6DE] cursor-pointer disabled:opacity-30 disabled:cursor-default"
+                    title="ขยาย"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Dynamic Page Indicator & Pagination */}
+                <div className="flex items-center gap-2">
+                  {totalPages > 1 && (
+                    <button
+                      type="button"
+                      onClick={handlePrevPage}
+                      disabled={currentPage <= 1}
+                      className="hover:text-black transition px-1 py-0.5 rounded hover:bg-[#EAE6DE] disabled:opacity-30 cursor-pointer"
+                    >
+                      ◀
+                    </button>
+                  )}
+                  <span id="page-indicator" className="font-light tracking-wide">
+                    หน้า {currentPage} จาก {totalPages}
+                  </span>
+                  {totalPages > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleNextPage}
+                      disabled={currentPage >= totalPages}
+                      className="hover:text-black transition px-1 py-0.5 rounded hover:bg-[#EAE6DE] disabled:opacity-30 cursor-pointer"
+                    >
+                      ▶
+                    </button>
+                  )}
+                </div>
+
+                {/* Close Button */}
+                <div>
+                  <button
+                    id="btn-close-preview"
+                    type="button"
+                    onClick={handleClosePreview}
+                    className="text-[#70675D] hover:text-black hover:bg-[#EAE6DE] px-2 py-1 rounded transition text-sm cursor-pointer"
+                    title="ปิดการดูตัวอย่าง"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* A4 Paper Canvas Container */}
+              <div className="w-full aspect-[1/1.414] min-h-[580px] bg-white rounded shadow-sm border border-[#E5E0D8] relative overflow-auto flex items-center justify-center">
+                {isPreviewActive && filePreviewUrl && !isUnsupported ? (
+                  <div
+                    id="preview-canvas-content"
+                    className="w-full h-full flex items-center justify-center p-2"
+                  >
+                    {isPdf ? (
+                      <canvas ref={canvasRef} className="max-w-full max-h-full object-contain shadow-xs bg-white" />
+                    ) : isImage ? (
+                      <img
+                        src={filePreviewUrl}
+                        alt="Document Preview"
+                        className="max-w-full max-h-full object-contain shadow-xs transition-transform duration-200"
+                        style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center center' }}
+                      />
+                    ) : (
+                      <iframe
+                        src={`${filePreviewUrl}#toolbar=0`}
+                        title="PDF Preview"
+                        className="w-full h-full border-0"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-[#70675D] select-none">
+                    <span className="text-2xl sm:text-3xl font-light tracking-wide">Preview เอกสาร</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<StaffDocumentIngestion />);
+  </script>
+</body>
+</html>

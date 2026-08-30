@@ -1,2 +1,4 @@
 Flask
 pymongo
+React
+PDF.js
