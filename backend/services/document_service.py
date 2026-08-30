@@ -43,6 +43,7 @@ class DocumentService:
                 file_type=file_metadata["file_type"],
                 file_size=file_metadata["file_size"],
                 uploaded_by=uploaded_by,
+                document_type_id=document_type_id,
             )
             return document.create()
         except Exception:

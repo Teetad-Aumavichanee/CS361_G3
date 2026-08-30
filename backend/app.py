@@ -3,7 +3,6 @@
 # Import Flask to create the web application.
 from flask import Flask
 
-
 # Create the Flask application instance.
 app = Flask(__name__)
 
