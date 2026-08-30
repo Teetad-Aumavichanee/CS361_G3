@@ -15,17 +15,18 @@
 ## 2. Project Scope & Phasing
 
 ### Version 1: Core Distribution (Current Target - MVP)
+
+**ไม่ต้องสนใจเรื่อง role (ไม่มี Auth)**
+
 * **Admin Role (ผู้ลงทะเบียน/ธุรการ):**
   * บันทึกข้อมูลและลงทะเบียนเอกสารเข้า
   * อัปโหลดไฟล์เอกสาร (PDF, Image) ขึ้นระบบ
-  * ระบุผู้รับเอกสาร
 * **User Role (อาจารย์ / เจ้าหน้าที่ผู้รับ):**
-  * เข้าสู่ระบบเพื่อดูเฉพาะกล่องข้อความเข้าของตนเอง (Personal Inbound Mailbox)
   * เปิดอ่าน ดูรายละเอียดได้
 
 ---
 
-## 3. User Roles & Permission Matrix (V1)
+## 3. User Roles & Permission Matrix 
 
 | Feature / Capability | Admin (ธุรการ/แอดมิน) | User (อาจารย์/เจ้าหน้าที่) |
 | :--- | :---: | :---: |
@@ -49,7 +50,24 @@
 * **Deployment & Environment:** Docker & Docker Compose
 
 ##  5. Database schema 
-wait...
+
+Table DOCUMENT_TYPES {
+  _id ObjectId [pk]
+  name string [note: 'ชื่อประเภทเอกสาร']
+  Note: 'ประเภทเอกสารที่ถูกส่ง'
+}
+
+Table DOCUMENTS {
+  _id ObjectId [pk]
+  document_type_id ObjectId [ref: > DOCUMENT_TYPES._id]
+  title string
+  file_path string
+  file_name string
+  file_type string
+  file_size int
+  uploaded_at datetime
+  uploaded_by string
+}
 
 ## 6. Cloud Architecture 
 wait...

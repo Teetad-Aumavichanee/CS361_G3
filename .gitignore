@@ -14,7 +14,6 @@ env/
 
 # Ignore uploaded documents while keeping the upload directory available.
 uploads/*
-!uploads/.gitkeep
 
 # Ignore test, coverage, and tool cache files.
 .pytest_cache/
@@ -26,6 +25,9 @@ htmlcov/
 
 # Ignore local Docker Compose override files.
 docker-compose.override.yml
+
+# Ignore local development progress notes.
+process.txt
 
 # Ignore operating-system and editor files.
 .DS_Store
