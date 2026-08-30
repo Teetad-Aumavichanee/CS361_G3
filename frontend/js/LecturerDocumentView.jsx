@@ -7,6 +7,7 @@ export default function LecturerDocumentView({
   onDownloadClick = (doc) => console.log('Download document:', doc)
 }) {
   const [documents] = useState([]);
+  const [isLoading] = useState(true);
 
   return (
     <div className="min-h-screen w-full bg-[#FAF8F5] p-6 sm:p-10 lg:p-14 font-['Prompt',sans-serif] text-[#3D3730]">
@@ -29,25 +30,39 @@ export default function LecturerDocumentView({
             <div className="col-span-12 md:col-span-1 text-right pr-2"></div>
           </div>
 
-          {documents.length === 0 ? (
+          {isLoading ? (
+            <div className="space-y-3 w-full animate-pulse">
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="w-full grid grid-cols-12 items-center p-3 sm:p-4 rounded-xl border border-[#EFECE6] bg-[#FAF8F5]/40"
+                >
+                  <div className="col-span-12 md:col-span-4 pr-4">
+                    <div className="h-4 sm:h-5 bg-[#D5CEC4]/70 rounded-full w-4/5"></div>
+                  </div>
+                  <div className="hidden md:block md:col-span-3 pr-4">
+                    <div className="h-4 sm:h-5 bg-[#D5CEC4]/70 rounded-full w-3/4"></div>
+                  </div>
+                  <div className="hidden md:block md:col-span-2 pr-4">
+                    <div className="h-4 sm:h-5 bg-[#D5CEC4]/70 rounded-full w-2/3"></div>
+                  </div>
+                  <div className="hidden md:block md:col-span-2 pr-4">
+                    <div className="h-4 sm:h-5 bg-[#D5CEC4]/70 rounded-full w-2/3"></div>
+                  </div>
+                  <div className="hidden md:flex md:col-span-1 justify-end gap-2 pr-2">
+                    <div className="w-5 h-5 rounded-full bg-[#D5CEC4]/50"></div>
+                    <div className="w-5 h-5 rounded-full bg-[#D5CEC4]/50"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : documents.length === 0 ? (
             <div className="w-full flex-1 min-h-[320px] flex items-center justify-center text-center">
               <p className="text-lg sm:text-xl font-light text-[#9E9689] select-none">
                 à¹„à¸¡à¹ˆà¸¡à¸µà¹€à¸­à¸à¸ªà¸²à¸£à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸šà¸‚à¸­à¸‡à¸—à¹ˆà¸²à¸™
               </p>
             </div>
-          ) : (
-            <div className="space-y-2.5 w-full">
-              {documents.map((doc) => (
-                <div key={doc.id} className="w-full grid grid-cols-12 items-center p-3 sm:p-4 rounded-xl border border-[#EFECE6] bg-white">
-                  <div className="col-span-4 pl-3">{doc.title}</div>
-                  <div className="col-span-3">{doc.receivedDate}</div>
-                  <div className="col-span-2">{doc.recipient}</div>
-                  <div className="col-span-2">{doc.sender}</div>
-                  <div className="col-span-1"></div>
-                </div>
-              ))}
-            </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
