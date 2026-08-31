@@ -240,26 +240,16 @@ export default function StaffDocumentIngestion() {
       if (response.ok) {
         showToast('success', 'บันทึกสำเร็จ');
         resetForm();
-      } else if (response.status === 404 || response.status === 500) {
-        // Fallback for preview mode when backend server is not running
-        setTimeout(() => {
-          showToast('success', 'บันทึกสำเร็จ');
-          resetForm();
-          setIsSubmitting(false);
-        }, 800);
-        return;
       } else {
-        const errData = await response.json().catch(() => ({}));
-        showToast('error', 'Error บันทึกไม่สำเร็จ', errData.error || 'กรอกรายละเอียดไม่ครบ/ไฟล์ไม่ถูกต้อง');
+        const errorData = await response.json().catch(() => ({}));
+        showToast(
+          'error',
+          'Error บันทึกไม่สำเร็จ',
+          errorData.error?.message || `HTTP ${response.status}`
+        );
       }
-    } catch (err) {
-      // Fallback for file:// or offline mode
-      setTimeout(() => {
-        showToast('success', 'บันทึกสำเร็จ');
-        resetForm();
-        setIsSubmitting(false);
-      }, 800);
-      return;
+    } catch (error) {
+      showToast('error', 'Error บันทึกไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
     }
 
     setIsSubmitting(false);
