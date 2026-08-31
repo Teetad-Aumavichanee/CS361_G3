@@ -14,6 +14,9 @@ env/
 
 # Ignore uploaded documents while keeping the upload directory available.
 uploads/*
+!uploads/aa53f3fa396547cb87b9a79c4f1ba01b_CS232_CS332_Module06-Compute-Part1.pdf
+!uploads/2aade10e3a2249a5a6f189455378f07f_CS232_CS332_Module06-Compute-Part2.pdf
+!uploads/164c0a3bfe4f42979042b2490b580371_aa53f3fa396547cb87b9a79c4f1ba01b_CS232_CS332_Module06-Compute-Part1.pdf
 
 # Ignore test, coverage, and tool cache files.
 .pytest_cache/

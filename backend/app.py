@@ -6,6 +6,7 @@ from flask_cors import CORS
 
 from backend import config
 from backend.routes import documents_bp
+from backend.services.mvp_seed_service import seed_mvp_documents
 
 
 # Create and configure the Flask application.
@@ -23,6 +24,9 @@ def create_app():
 
     # Register document API routes under /api/v1/documents.
     app.register_blueprint(documents_bp)
+
+    # Add three stakeholder demo documents only to a fresh database.
+    seed_mvp_documents()
     return app
 
 
