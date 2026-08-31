@@ -222,12 +222,10 @@ export default function StaffDocumentIngestion() {
 
     const payload = new FormData();
     payload.append('title', formData.title);
-    payload.append('receivedDate', formData.receivedDate);
-    payload.append('recipientName', formData.recipientName);
-    payload.append('senderName', formData.senderName);
-    uploadedFiles.forEach((item, index) => {
-      payload.append(`files[${index}]`, item.file);
-    });
+    payload.append('document_date', formData.receivedDate);
+    payload.append('receiver', formData.recipientName);
+    payload.append('sender', formData.senderName);
+    payload.append('file', uploadedFiles[0].file);
 
     try {
       const response = await fetch('/api/v1/documents', {
