@@ -2,6 +2,7 @@
 
 # Import Flask to create the web application and redirect the root page.
 from flask import Flask, redirect, url_for
+from flask_cors import CORS
 
 from backend import config
 from backend.routes import documents_bp
@@ -18,6 +19,7 @@ def create_app():
 
     # Load settings such as the MongoDB URI and upload folder.
     app.config.from_object(config)
+    CORS(app)
 
     # Register document API routes under /api/v1/documents.
     app.register_blueprint(documents_bp)

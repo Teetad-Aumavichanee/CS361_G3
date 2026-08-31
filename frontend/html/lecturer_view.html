@@ -52,6 +52,9 @@
 
   <script type="text/babel">
     const { useState, useEffect, useRef, useCallback } = React;
+    const API_BASE_URL = ['null', 'http://localhost:5500', 'http://127.0.0.1:5500'].includes(window.location.origin)
+      ? 'http://localhost:5000'
+      : window.location.origin;
 
     function DocumentPreviewModal({ document: doc, isOpen, onClose }) {
       const [currentFileIndex, setCurrentFileIndex] = useState(0);
@@ -322,7 +325,7 @@
         async function fetchDocuments() {
           setViewState('loading');
           try {
-            const response = await fetch('/api/v1/documents');
+            const response = await fetch(`${API_BASE_URL}/api/v1/documents`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
             const data = await response.json();

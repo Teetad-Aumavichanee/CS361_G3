@@ -4,6 +4,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
  * DocumentPreviewModal Component
  * Modal overlay with portrait A4 canvas, document switcher (< >), centered pagination, zoom, and download.
  */
+const API_BASE_URL = ['null', 'http://localhost:5500', 'http://127.0.0.1:5500'].includes(window.location.origin)
+  ? 'http://localhost:5000'
+  : window.location.origin;
+
 export function DocumentPreviewModal({ document: doc, isOpen, onClose }) {
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [zoom, setZoom] = useState(100);
@@ -418,7 +422,7 @@ export default function LecturerDocumentView({
     async function fetchDocuments() {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/v1/documents');
+        const response = await fetch(`${API_BASE_URL}/api/v1/documents`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         if (isMounted) {

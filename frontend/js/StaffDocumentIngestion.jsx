@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
+const API_BASE_URL = ['null', 'http://localhost:5500', 'http://127.0.0.1:5500'].includes(window.location.origin)
+  ? 'http://localhost:5000'
+  : window.location.origin;
+
 export default function StaffDocumentIngestion() {
   const [formData, setFormData] = useState({
     title: '',
@@ -228,7 +232,7 @@ export default function StaffDocumentIngestion() {
     payload.append('file', uploadedFiles[0].file);
 
     try {
-      const response = await fetch('/api/v1/documents', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/documents`, {
         method: 'POST',
         body: payload
       });
