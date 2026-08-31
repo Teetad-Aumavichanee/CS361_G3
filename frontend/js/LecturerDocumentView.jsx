@@ -149,8 +149,8 @@ export function DocumentPreviewModal({ document: doc, isOpen, onClose }) {
 
   const handleDownload = (e) => {
     e.stopPropagation();
-    const fileName = activeFile ? activeFile.name : `${doc.title || 'document'}.pdf`;
-    alert(`กำลังดาวน์โหลดเอกสาร: ${fileName}`);
+    const downloadUrl = `${API_BASE_URL}/api/v1/documents/${doc.id}/file?download=true`;
+    window.open(downloadUrl, '_blank');
   };
 
   return (
@@ -426,7 +426,8 @@ export default function LecturerDocumentView({
   };
 
   const handleDownload = (doc) => {
-    alert(`ดาวน์โหลดเอกสาร: ${doc.title}`);
+    const downloadUrl = `${API_BASE_URL}/api/v1/documents/${doc.id}/file?download=true`;
+    window.open(downloadUrl, '_blank');
   };
 
   return (

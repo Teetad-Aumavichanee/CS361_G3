@@ -189,7 +189,8 @@
 
       const handleDownload = (e) => {
         e.stopPropagation();
-        alert(`กำลังดาวน์โหลดเอกสาร: ${activeFile ? activeFile.name : doc.title}`);
+        const downloadUrl = `${API_BASE_URL}/api/v1/documents/${doc.id}/file?download=true`;
+        window.open(downloadUrl, '_blank');
       };
 
       return (
@@ -394,7 +395,8 @@
       };
 
       const handleDirectDownload = (doc) => {
-        alert(`ดาวน์โหลดเอกสาร: ${doc.title}`);
+        const downloadUrl = `${API_BASE_URL}/api/v1/documents/${doc.id}/file?download=true`;
+        window.open(downloadUrl, '_blank');
       };
 
       useEffect(() => {
