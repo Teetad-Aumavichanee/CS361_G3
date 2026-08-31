@@ -19,7 +19,7 @@ def create_app():
 
     # Load settings such as the MongoDB URI and upload folder.
     app.config.from_object(config)
-    CORS(app)
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     # Register document API routes under /api/v1/documents.
     app.register_blueprint(documents_bp)
