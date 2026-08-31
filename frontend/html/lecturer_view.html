@@ -141,7 +141,7 @@
                 {doc.title}
               </h2>
               <p className="text-xs sm:text-sm text-white/80 font-light">
-                ได้รับ {doc.document_date || doc.receivedDate || '-'}
+                ได้รับ {doc.document_date || doc.uploaded_at || '-'}
               </p>
               <p className="text-xs sm:text-sm text-white/80 font-light">
                 จาก {doc.sender}
@@ -329,7 +329,7 @@
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
             const data = await response.json();
-            const list = Array.isArray(data) ? data : data.documents || [];
+            const list = data.documents || [];
 
             if (isMounted) {
               setDocuments(list);
@@ -427,12 +427,12 @@
 
                       <div className="col-span-6 md:col-span-3 text-xs sm:text-sm text-[#70675D] font-light mt-2 md:mt-0 pl-3 md:pl-0">
                         <span className="md:hidden text-[#9E9689] block text-[11px]">วันที่: </span>
-                        {doc.document_date || doc.receivedDate || '-'}
+                        {doc.document_date || doc.uploaded_at || '-'}
                       </div>
 
                       <div className="col-span-6 md:col-span-2 text-xs sm:text-sm text-[#70675D] font-light mt-2 md:mt-0">
                         <span className="md:hidden text-[#9E9689] block text-[11px]">ผู้รับ: </span>
-                        {doc.receiver || doc.recipient || '-'}
+                        {doc.receiver || '-'}
                       </div>
 
                       <div className="col-span-6 md:col-span-2 text-xs sm:text-sm text-[#70675D] font-light mt-2 md:mt-0 pl-3 md:pl-0">

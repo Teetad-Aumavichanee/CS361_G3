@@ -160,7 +160,7 @@ export function DocumentPreviewModal({ document: doc, isOpen, onClose }) {
             {doc.title || 'ไม่มีชื่อเรื่อง'}
           </h2>
           <p className="text-xs sm:text-sm text-white/80 font-light">
-            ได้รับ {doc.document_date || doc.receivedDate || '-'}
+            ได้รับ {doc.document_date || doc.uploaded_at || '-'}
           </p>
           <p className="text-xs sm:text-sm text-white/80 font-light">
             จาก {doc.sender || doc.senderName || '-'}
@@ -349,50 +349,6 @@ export default function LecturerDocumentView({
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  const mockDocuments = [
-    {
-      id: 'doc-001',
-      title: 'file 1',
-      receivedDate: '28 ส.ค. 2026 23:59 น.',
-      recipient: 'อ.XXX',
-      sender: 'อ.YYY',
-      files: [
-        { id: 'f-001-1', name: 'File1.pdf', totalPages: 99 },
-        { id: 'f-001-2', name: 'File2_appendix.pdf', totalPages: 4 }
-      ]
-    },
-    {
-      id: 'doc-002',
-      title: 'ขอเชิญประชุมคณะกรรมการบริหารหลักสูตร วิทยาการคอมพิวเตอร์',
-      receivedDate: '1 ก.ย. 2026 01:00 น.',
-      recipient: 'อ.XXX',
-      sender: 'อ.YYY',
-      files: [
-        { id: 'f-002-1', name: 'วาระการประชุม.pdf', totalPages: 12 }
-      ]
-    },
-    {
-      id: 'doc-003',
-      title: "Newton's first law expresses the principle of inertia: the natural behavior of a body is to move in a straight line at constant speed. A body's motion preserves the status quo, but external forces can perturb this.",
-      receivedDate: '30 ก.พ. 2077 10:00 น.',
-      recipient: 'อ. Ap P. Le',
-      sender: 'อ. Issac Newton',
-      files: [
-        { id: 'f-003-1', name: 'Principia_Mathematica.pdf', totalPages: 5 }
-      ]
-    },
-    {
-      id: 'doc-004',
-      title: 'อาจารย์ครับ',
-      receivedDate: '1 ม.ค. 2028 22:00 น.',
-      recipient: 'อ. สมชาย ใจดี',
-      sender: 'นายสมหญิง ใจงาม',
-      files: [
-        { id: 'f-004-1', name: 'คำร้องขอลาเรียน.pdf', totalPages: 2 }
-      ]
-    }
-  ];
-
   const formatThaiDate = (dateStr) => {
     if (!dateStr) return '';
     if (dateStr.includes('น.') || dateStr.includes('ส.ค.') || dateStr.includes('ก.ย.')) {
@@ -426,16 +382,15 @@ export default function LecturerDocumentView({
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         if (isMounted) {
-          const list = Array.isArray(data) ? data : data.documents || [];
-          setDocuments(list);
+          setDocuments(data.documents || []);
         }
       } catch (err) {
         if (isMounted) {
-          setDocuments(mockDocuments);
+          setDocuments([]);
         }
       } finally {
         if (isMounted) {
-          setTimeout(() => setIsLoading(false), 500);
+          setIsLoading(false);
         }
       }
     }
@@ -534,15 +489,15 @@ export default function LecturerDocumentView({
                   </div>
                   <div className="col-span-6 md:col-span-3 text-xs sm:text-sm text-[#70675D] font-light mt-2 md:mt-0 pl-3 md:pl-0">
                     <span className="md:hidden text-[#9E9689] block text-[11px]">วันที่: </span>
-                    {formatThaiDate(doc.document_date || doc.receivedDate || doc.date || doc.createdAt)}
+                    {formatThaiDate(doc.document_date || doc.uploaded_at)}
                   </div>
                   <div className="col-span-6 md:col-span-2 text-xs sm:text-sm text-[#70675D] font-light mt-2 md:mt-0">
                     <span className="md:hidden text-[#9E9689] block text-[11px]">ผู้รับ: </span>
-                    {doc.receiver || doc.recipient || doc.recipientName || 'อ.XXX'}
+                    {doc.receiver || '-'}
                   </div>
                   <div className="col-span-6 md:col-span-2 text-xs sm:text-sm text-[#70675D] font-light mt-2 md:mt-0 pl-3 md:pl-0">
                     <span className="md:hidden text-[#9E9689] block text-[11px]">ผู้ส่ง: </span>
-                    {doc.sender || doc.senderName || 'อ.YYY'}
+                    {doc.sender || '-'}
                   </div>
                   <div className="col-span-6 md:col-span-1 flex items-center justify-end gap-3 pr-2 mt-2 md:mt-0">
                     <button
