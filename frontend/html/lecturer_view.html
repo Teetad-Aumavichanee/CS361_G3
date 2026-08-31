@@ -297,53 +297,10 @@
     }
 
     function LecturerDocumentViewApp() {
-      const [viewState, setViewState] = useState('data');
+      const [viewState, setViewState] = useState('loading');
+      const [documents, setDocuments] = useState([]);
       const [selectedDoc, setSelectedDoc] = useState(null);
       const [isModalOpen, setIsModalOpen] = useState(false);
-
-      const sampleDocuments = [
-        {
-          id: 'doc-001',
-          title: 'file 1',
-          receivedDate: '28 ส.ค. 2026 23:59 น.',
-          recipient: 'อ.XXX',
-          sender: 'อ.YYY',
-          files: [
-            { id: 'f-001-1', name: 'File1.pdf', totalPages: 99 },
-            { id: 'f-001-2', name: 'File2_เอกสารแนบ.pdf', totalPages: 4 }
-          ]
-        },
-        {
-          id: 'doc-002',
-          title: 'ขอเชิญประชุมคณะกรรมการบริหารหลักสูตร วิทยาการคอมพิวเตอร์',
-          receivedDate: '1 ก.ย. 2026 01:00 น.',
-          recipient: 'อ.XXX',
-          sender: 'อ.YYY',
-          files: [
-            { id: 'f-002-1', name: 'วาระการประชุม.pdf', totalPages: 12 }
-          ]
-        },
-        {
-          id: 'doc-003',
-          title: "Newton's first law expresses the principle of inertia: the natural behavior of a body is to move in a straight line at constant speed. A body's motion preserves the status quo, but external forces can perturb this.",
-          receivedDate: '30 ก.พ. 2077 10:00 น.',
-          recipient: 'อ. Ap P. Le',
-          sender: 'อ. Issac Newton',
-          files: [
-            { id: 'f-003-1', name: 'Principia_Mathematica.pdf', totalPages: 5 }
-          ]
-        },
-        {
-          id: 'doc-004',
-          title: 'อาจารย์ครับ',
-          receivedDate: '1 ม.ค. 2028 22:00 น.',
-          recipient: 'อ. สมชาย ใจดี',
-          sender: 'นายสมหญิง ใจงาม',
-          files: [
-            { id: 'f-004-1', name: 'คำร้องขอลาเรียน.pdf', totalPages: 2 }
-          ]
-        }
-      ];
 
       const handleOpenModal = (doc) => {
         setSelectedDoc(doc);
@@ -359,12 +316,35 @@
         alert(`ดาวน์โหลดเอกสาร: ${doc.title}`);
       };
 
-      const simulateApiFetch = () => {
-        setViewState('loading');
-        setTimeout(() => {
-          setViewState('data');
-        }, 1000);
-      };
+      useEffect(() => {
+        let isMounted = true;
+
+        async function fetchDocuments() {
+          setViewState('loading');
+          try {
+            const response = await fetch('/api/v1/documents');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            const data = await response.json();
+            const list = Array.isArray(data) ? data : data.documents || [];
+
+            if (isMounted) {
+              setDocuments(list);
+              setViewState(list.length > 0 ? 'data' : 'empty');
+            }
+          } catch (error) {
+            if (isMounted) {
+              setDocuments([]);
+              setViewState('empty');
+            }
+          }
+        }
+
+        fetchDocuments();
+        return () => {
+          isMounted = false;
+        };
+      }, []);
 
       return (
         <div className="min-h-screen w-full bg-[#FAF8F5] p-6 sm:p-10 lg:p-14 font-['Prompt',sans-serif] text-[#3D3730] relative">
@@ -373,43 +353,6 @@
             isOpen={isModalOpen}
             onClose={handleCloseModal}
           />
-
-          {/* Quick Demo Toolbar (Hidden when modal is open to avoid any overlap) */}
-          {!isModalOpen && (
-            <div className="fixed bottom-3 right-4 z-40 bg-white/95 backdrop-blur border border-[#D5CEC4] rounded-xl px-3 py-2 shadow-md flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-[#70675D] font-medium">Quick State Demo:</span>
-              <button
-                onClick={() => setViewState('data')}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  viewState === 'data' ? 'bg-[#8C8176] text-white' : 'bg-[#EFECE6] text-[#70675D] hover:bg-[#E2DDD5]'
-                }`}
-              >
-                1. Show Data
-              </button>
-              <button
-                onClick={() => setViewState('loading')}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  viewState === 'loading' ? 'bg-[#8C8176] text-white' : 'bg-[#EFECE6] text-[#70675D] hover:bg-[#E2DDD5]'
-                }`}
-              >
-                2. Show Loading Skeleton
-              </button>
-              <button
-                onClick={() => setViewState('empty')}
-                className={`px-2.5 py-1 rounded-lg transition ${
-                  viewState === 'empty' ? 'bg-[#8C8176] text-white' : 'bg-[#EFECE6] text-[#70675D] hover:bg-[#E2DDD5]'
-                }`}
-              >
-                3. Show Empty State
-              </button>
-              <button
-                onClick={simulateApiFetch}
-                className="bg-[#6BBF72] text-white px-2.5 py-1 rounded-lg hover:bg-[#5AA860] transition"
-              >
-                Simulate API Fetch
-              </button>
-            </div>
-          )}
 
           <div className="max-w-6xl mx-auto">
             <div className="mb-6 sm:mb-8">
@@ -460,7 +403,7 @@
 
               {viewState === 'data' && (
                 <div className="space-y-2.5 w-full">
-                  {sampleDocuments.map((doc) => (
+                  {documents.map((doc) => (
                     <div
                       key={doc.id}
                       className="w-full grid grid-cols-12 items-center p-3 sm:p-4 rounded-xl border border-[#EFECE6] bg-white hover:bg-[#FAF8F5] transition duration-150 group"
