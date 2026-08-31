@@ -22,7 +22,15 @@ export function DocumentPreviewModal({ document: doc, isOpen, onClose }) {
   const filesList = doc && doc.files && doc.files.length > 0
     ? doc.files
     : doc
-    ? [{ id: doc.id || 'f-1', name: doc.file_name || doc.fileName || `${doc.title || 'เอกสาร'}.pdf`, url: doc.file_url || doc.fileUrl || null, totalPages: doc.totalPages || 99 }]
+    ? [{
+        id: doc.id || 'f-1',
+        name: doc.file_name || doc.fileName || `${doc.title || 'เอกสาร'}.pdf`,
+        url: doc.file_url
+          ? new URL(doc.file_url, API_BASE_URL).toString()
+          : doc.fileUrl || null,
+        file_type: doc.file_type || doc.fileType || '',
+        totalPages: doc.totalPages || 99,
+      }]
     : [];
 
   const activeFile = filesList[currentFileIndex] || filesList[0];
@@ -43,7 +51,13 @@ export function DocumentPreviewModal({ document: doc, isOpen, onClose }) {
     setTotalPages(fileItem.totalPages || 99);
 
     const fileSrc = fileItem.url || '';
-    if (fileSrc.endsWith('.pdf')) {
+    const fileType = fileItem.file_type || fileItem.type || '';
+    const isPdfFile = fileType === 'application/pdf' || /\.pdf(?:$|[?#])/i.test(fileSrc);
+    const isImageFile = /^image\/(png|jpe?g)$/i.test(fileType)
+      || /\.(png|jpg|jpeg)(?:$|[?#])/i.test(fileSrc);
+
+    setPdfDoc(null);
+    if (isPdfFile && fileSrc) {
       setIsPdf(true);
       setIsImage(false);
       if (window.pdfjsLib) {
@@ -55,7 +69,7 @@ export function DocumentPreviewModal({ document: doc, isOpen, onClose }) {
           () => setPdfDoc(null)
         );
       }
-    } else if (fileSrc.match(/\.(png|jpg|jpeg|webp)$/i)) {
+    } else if (isImageFile && fileSrc) {
       setIsPdf(false);
       setIsImage(true);
       setPdfDoc(null);

@@ -61,11 +61,23 @@
       const [zoom, setZoom] = useState(100);
       const [currentPage, setCurrentPage] = useState(1);
       const [totalPages, setTotalPages] = useState(99);
+      const [pdfDoc, setPdfDoc] = useState(null);
+      const [isPdf, setIsPdf] = useState(false);
+      const [isImage, setIsImage] = useState(false);
+      const canvasRef = useRef(null);
 
       const filesList = doc && doc.files && doc.files.length > 0
         ? doc.files
         : doc
-        ? [{ id: doc.id || 'f-1', name: doc.file_name || doc.fileName || `${doc.title || 'เอกสาร'}.pdf`, url: doc.file_url || doc.fileUrl || null, totalPages: doc.totalPages || 99 }]
+        ? [{
+            id: doc.id || 'f-1',
+            name: doc.file_name || doc.fileName || `${doc.title || 'เอกสาร'}.pdf`,
+            url: doc.file_url
+              ? new URL(doc.file_url, API_BASE_URL).toString()
+              : doc.fileUrl || null,
+            file_type: doc.file_type || doc.fileType || '',
+            totalPages: doc.totalPages || 99,
+          }]
         : [];
 
       const activeFile = filesList[currentFileIndex] || filesList[0];
@@ -76,8 +88,66 @@
           setZoom(100);
           setCurrentPage(1);
           setTotalPages(filesList[0]?.totalPages || 99);
+          loadFilePreview(filesList[0]);
         }
       }, [isOpen, doc]);
+
+      const loadFilePreview = (fileItem) => {
+        if (!fileItem) return;
+
+        setZoom(100);
+        setCurrentPage(1);
+        setTotalPages(fileItem.totalPages || 99);
+
+        const fileSrc = fileItem.url || '';
+        const fileType = fileItem.file_type || fileItem.type || '';
+        const isPdfFile = fileType === 'application/pdf' || /\.pdf(?:$|[?#])/i.test(fileSrc);
+        const isImageFile = /^image\/(png|jpe?g)$/i.test(fileType)
+          || /\.(png|jpg|jpeg)(?:$|[?#])/i.test(fileSrc);
+
+        setPdfDoc(null);
+        if (isPdfFile && fileSrc) {
+          setIsPdf(true);
+          setIsImage(false);
+          if (window.pdfjsLib) {
+            window.pdfjsLib.getDocument(fileSrc).promise.then(
+              (pdf) => {
+                setPdfDoc(pdf);
+                setTotalPages(pdf.numPages);
+              },
+              () => setPdfDoc(null)
+            );
+          }
+        } else if (isImageFile && fileSrc) {
+          setIsPdf(false);
+          setIsImage(true);
+          setTotalPages(1);
+        } else {
+          setIsPdf(false);
+          setIsImage(false);
+        }
+      };
+
+      const renderPdfPage = useCallback(async (pageNum, pdf) => {
+        if (!pdf || !canvasRef.current) return;
+        try {
+          const page = await pdf.getPage(pageNum);
+          const canvas = canvasRef.current;
+          const context = canvas.getContext('2d');
+          const viewport = page.getViewport({ scale: 1.35 });
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          await page.render({ canvasContext: context, viewport }).promise;
+        } catch (error) {
+          console.error(error);
+        }
+      }, []);
+
+      useEffect(() => {
+        if (isOpen && isPdf && pdfDoc) {
+          renderPdfPage(currentPage, pdfDoc);
+        }
+      }, [isOpen, isPdf, pdfDoc, currentPage, renderPdfPage]);
 
       useEffect(() => {
         if (!isOpen) return;
@@ -103,6 +173,7 @@
           setCurrentFileIndex(nextIndex);
           setTotalPages(filesList[nextIndex].totalPages || 99);
           setCurrentPage(1);
+          loadFilePreview(filesList[nextIndex]);
         }
       };
 
@@ -112,6 +183,7 @@
           setCurrentFileIndex(nextIndex);
           setTotalPages(filesList[nextIndex].totalPages || 99);
           setCurrentPage(1);
+          loadFilePreview(filesList[nextIndex]);
         }
       };
 
@@ -193,16 +265,22 @@
               style={{ transform: `scale(${zoom / 100})` }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex flex-col items-center justify-center text-center p-8 text-[#70675D]">
-                <span className="text-xl sm:text-2xl font-light tracking-wide text-[#70675D]">
-                  Preview เอกสาร
-                </span>
-                {filesList.length > 1 && (
-                  <span className="text-xs text-[#9E9689] mt-2 font-light">
-                    ({activeFile?.name})
+              {isPdf && pdfDoc ? (
+                <canvas ref={canvasRef} className="max-w-full max-h-full object-contain" />
+              ) : isImage && activeFile && activeFile.url ? (
+                <img src={activeFile.url} alt="Preview" className="max-w-full max-h-full object-contain" />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center p-8 text-[#70675D]">
+                  <span className="text-xl sm:text-2xl font-light tracking-wide text-[#70675D]">
+                    Preview เอกสาร
                   </span>
-                )}
-              </div>
+                  {filesList.length > 1 && (
+                    <span className="text-xs text-[#9E9689] mt-2 font-light">
+                      ({activeFile?.name})
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {filesList.length > 1 && (
