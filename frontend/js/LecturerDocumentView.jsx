@@ -18,7 +18,7 @@ export function DocumentPreviewModal({ document: doc, isOpen, onClose }) {
   const filesList = doc && doc.files && doc.files.length > 0
     ? doc.files
     : doc
-    ? [{ id: doc.id || 'f-1', name: doc.fileName || `${doc.title || 'เอกสาร'}.pdf`, url: doc.fileUrl || null, totalPages: doc.totalPages || 99 }]
+    ? [{ id: doc.id || 'f-1', name: doc.file_name || doc.fileName || `${doc.title || 'เอกสาร'}.pdf`, url: doc.file_url || doc.fileUrl || null, totalPages: doc.totalPages || 99 }]
     : [];
 
   const activeFile = filesList[currentFileIndex] || filesList[0];
@@ -156,7 +156,7 @@ export function DocumentPreviewModal({ document: doc, isOpen, onClose }) {
             {doc.title || 'ไม่มีชื่อเรื่อง'}
           </h2>
           <p className="text-xs sm:text-sm text-white/80 font-light">
-            ได้รับ {doc.receivedDate || '-'}
+            ได้รับ {doc.document_date || doc.receivedDate || '-'}
           </p>
           <p className="text-xs sm:text-sm text-white/80 font-light">
             จาก {doc.sender || doc.senderName || '-'}
@@ -530,11 +530,11 @@ export default function LecturerDocumentView({
                   </div>
                   <div className="col-span-6 md:col-span-3 text-xs sm:text-sm text-[#70675D] font-light mt-2 md:mt-0 pl-3 md:pl-0">
                     <span className="md:hidden text-[#9E9689] block text-[11px]">วันที่: </span>
-                    {formatThaiDate(doc.receivedDate || doc.date || doc.createdAt)}
+                    {formatThaiDate(doc.document_date || doc.receivedDate || doc.date || doc.createdAt)}
                   </div>
                   <div className="col-span-6 md:col-span-2 text-xs sm:text-sm text-[#70675D] font-light mt-2 md:mt-0">
                     <span className="md:hidden text-[#9E9689] block text-[11px]">ผู้รับ: </span>
-                    {doc.recipient || doc.recipientName || 'อ.XXX'}
+                    {doc.receiver || doc.recipient || doc.recipientName || 'อ.XXX'}
                   </div>
                   <div className="col-span-6 md:col-span-2 text-xs sm:text-sm text-[#70675D] font-light mt-2 md:mt-0 pl-3 md:pl-0">
                     <span className="md:hidden text-[#9E9689] block text-[11px]">ผู้ส่ง: </span>
