@@ -3,8 +3,25 @@
 # Import Flask to create the web application.
 from flask import Flask
 
-# Create the Flask application instance.
-app = Flask(__name__)
+from backend import config
+from backend.routes import documents_bp
+
+
+# Create and configure the Flask application.
+def create_app():
+    # Create the Flask application instance.
+    app = Flask(__name__)
+
+    # Load settings such as the MongoDB URI and upload folder.
+    app.config.from_object(config)
+
+    # Register document API routes under /api/v1/documents.
+    app.register_blueprint(documents_bp)
+    return app
+
+
+# Create the application instance used by Flask and Docker.
+app = create_app()
 
 
 # Provide a simple endpoint for checking that the backend is running.

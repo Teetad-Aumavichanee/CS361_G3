@@ -26,4 +26,4 @@ RUN mkdir -p /app/uploads
 EXPOSE 5000
 
 # Start the Flask application through the backend entry point.
-CMD ["python", "backend/app.py"]
+CMD ["python", "-m", "backend.app"]
