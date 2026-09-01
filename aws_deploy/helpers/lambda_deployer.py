@@ -108,5 +108,5 @@ def deploy_lambda_function(
             pass
 
     function_url = function_url.rstrip("/")
-    print(f"info: ambda Function URL active: {function_url}")
+    print(f"info: Lambda Function URL active: {function_url}")
     return function_url

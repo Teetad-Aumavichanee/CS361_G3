@@ -40,7 +40,9 @@ def main():
     zip_path = build_lambda_package()
 
     # 4. Deploy Fat Lambda Backend & Function URL
-    function_url = deploy_lambda_function(session, account_id, region, doc_bucket, mongo_uri, zip_path)
+    function_url = deploy_lambda_function(
+        session, account_id, region, doc_bucket, mongo_uri, zip_path
+    )
 
     # 5. Deploy Frontend to S3 Static Website
     website_url = deploy_frontend_website(session, account_id, region, function_url)
@@ -51,7 +53,7 @@ def main():
     print(f"info: staff Upload Page : {website_url}/html/staff_upload.html")
     print(f"info: lecturer View Page: {website_url}/html/lecturer_view.html")
     print(f"info: lambda Function URL  : {function_url}/api/v1/documents")
-    print(f"info: s3 Document Storage : s3://{doc_bucket}"cd
+    print(f"info: s3 Document Storage : s3://{doc_bucket}")
 
 
 if __name__ == "__main__":

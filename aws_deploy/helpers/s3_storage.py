@@ -33,7 +33,7 @@ def setup_document_bucket(session, account_id: str, region: str) -> str:
         print(f"info: S3 Document Bucket ready: s3://{bucket_name}")
     except ClientError as err:
         if err.response["Error"]["Code"] in ("BucketAlreadyOwnedByYou", "BucketAlreadyExists"):
-            print(f"error:  S3 Document Bucket already exists: s3://{bucket_name}")
+            print(f"info: S3 Document Bucket already exists: s3://{bucket_name}")
         else:
             raise
 
