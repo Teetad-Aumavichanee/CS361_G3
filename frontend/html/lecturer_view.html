@@ -437,8 +437,9 @@
             onClose={handleCloseModal}
           />
 
-          {/* Quick Demo role tabs */}
-          <div className="fixed bottom-3 right-4 z-40 bg-white/95 backdrop-blur border border-[#D5CEC4] rounded-xl px-3 py-2 shadow-md flex items-center gap-2 text-xs">
+          {/* Quick Demo Toolbar (Hidden when modal is open to avoid any overlap) */}
+          {!isModalOpen && (
+            <div className="fixed bottom-3 right-4 z-40 bg-white/95 backdrop-blur border border-[#D5CEC4] rounded-xl px-3 py-2 shadow-md flex flex-wrap items-center gap-2 text-xs">
             <span className="text-[#70675D] font-medium">Quick Demo:</span>
             <a
               href="lecturer_view.html"
@@ -452,7 +453,32 @@
             >
               Admin
             </a>
+            <button
+              onClick={() => setViewState('data')}
+              className={`px-2.5 py-1 rounded-lg transition ${
+                viewState === 'data' ? 'bg-[#8C8176] text-white' : 'bg-[#EFECE6] text-[#70675D] hover:bg-[#E2DDD5]'
+              }`}
+            >
+              Show Data
+            </button>
+            <button
+              onClick={() => setViewState('loading')}
+              className={`px-2.5 py-1 rounded-lg transition ${
+                viewState === 'loading' ? 'bg-[#8C8176] text-white' : 'bg-[#EFECE6] text-[#70675D] hover:bg-[#E2DDD5]'
+              }`}
+            >
+              Show Loading Skeleton
+            </button>
+            <button
+              onClick={() => setViewState('empty')}
+              className={`px-2.5 py-1 rounded-lg transition ${
+                viewState === 'empty' ? 'bg-[#8C8176] text-white' : 'bg-[#EFECE6] text-[#70675D] hover:bg-[#E2DDD5]'
+              }`}
+            >
+              Show Empty State
+            </button>
           </div>
+          )}
 
           <div className="max-w-6xl mx-auto">
             <div className="mb-6 sm:mb-8">
