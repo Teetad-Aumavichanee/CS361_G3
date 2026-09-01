@@ -37,17 +37,23 @@ def setup_document_bucket(session, account_id: str, region: str) -> str:
         else:
             raise
 
-    # Upload initial seed PDF documents for grading demo
+    # Upload initial seed PDF documents for grading demo (skip if already in S3)
     uploads_dir = PROJECT_ROOT / "uploads"
     if uploads_dir.exists():
-        for pdf_path in uploads_dir.glob("*.pdf"):
-            s3_key = f"uploads/{pdf_path.name}"
-            s3_client.upload_file(
-                str(pdf_path),
-                bucket_name,
-                s3_key,
-                ExtraArgs={"ContentType": "application/pdf"},
-            )
-            print(f"   📄 Seeded: {s3_key}")
+        pdf_files = list(uploads_dir.glob("*.pdf"))
+        if pdf_files:
+            print(f"   [INFO] Checking {len(pdf_files)} demo PDF files...", end="", flush=True)
+            for pdf_path in pdf_files:
+                s3_key = f"uploads/{pdf_path.name}"
+                try:
+                    s3_client.head_object(Bucket=bucket_name, Key=s3_key)
+                except ClientError:
+                    s3_client.upload_file(
+                        str(pdf_path),
+                        bucket_name,
+                        s3_key,
+                        ExtraArgs={"ContentType": "application/pdf"},
+                    )
+            print(" [Done]")
 
     return bucket_name

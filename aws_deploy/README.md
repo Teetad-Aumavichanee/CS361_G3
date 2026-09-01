@@ -1,10 +1,10 @@
-# 🚀 AWS Serverless Deployment Guide (AWS Learner Lab)
+# AWS Serverless Deployment Guide (AWS Learner Lab)
 
 This folder (`aws_deploy/`) contains all the tools and configurations to deploy the **e-Mailbox** system to **AWS Learner Lab** without touching or modifying any of the original project files.
 
 ---
 
-## 🏛️ System Architecture
+## System Architecture
 
 ```text
 +--------------------------------------------------------------------+
@@ -41,7 +41,7 @@ This folder (`aws_deploy/`) contains all the tools and configurations to deploy 
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 ### 1. AWS Learner Lab Credentials
 In your **AWS Learner Lab** console:
@@ -65,18 +65,18 @@ export MONGO_URI="mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net
 
 ---
 
-## ⚡ How to Deploy (Single Command)
+## How to Deploy (Single Command)
 
 Using `uv`, run the deployment script:
 
 ```bash
-uv run python aws_deploy/deploy.py
+uv run aws_deploy/deploy.py
 ```
 
 The script will automatically:
 1. Connect to AWS using your `LabRole`.
 2. Create the **S3 Document Bucket** and upload sample seed PDFs.
-3. Build the Lambda deployment package with all Python dependencies.
+3. Build the lightweight Lambda deployment package with all Python dependencies.
 4. Deploy/Update the **Fat Lambda** function with memory 512MB and 30s timeout.
 5. Configure the **Lambda Function URL** with public CORS.
 6. Create the **S3 Frontend Bucket**, configure Static Website Hosting and public read policy.
@@ -85,7 +85,7 @@ The script will automatically:
 
 ---
 
-## 🎓 Grading & Presentation Walkthrough
+## Grading & Presentation Walkthrough
 
 When presenting to your instructor or grader, you can demonstrate the following:
 
@@ -110,12 +110,12 @@ When presenting to your instructor or grader, you can demonstrate the following:
 
 ---
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 - **Session Expired in Learner Lab?**
   When your 4-hour AWS Learner Lab session expires:
   1. Restart the lab.
   2. Copy the new credentials from **AWS Details** and export them in terminal.
-  3. Re-run `uv run python aws_deploy/deploy.py`. Deployment takes under 30 seconds!
+  3. Re-run `uv run aws_deploy/deploy.py`. Deployment takes under 20 seconds!
 - **CORS or Network Error?**
   Ensure MongoDB Atlas Network Access is set to `0.0.0.0/0` (Allow access from anywhere).

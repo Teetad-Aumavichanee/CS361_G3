@@ -12,7 +12,7 @@ if PROJECT_ROOT not in sys.path:
 from backend.app import app
 from backend.routes import documents as documents_route_module
 from aws_deploy.s3_storage_service import S3FileStorageService
-from aws_deploy.wsgi_adapter import handle_lambda_request
+from aws_deploy.lambda_adapter import handle_lambda_request
 
 # Dynamically inject the S3 storage service into the existing document_service
 # without modifying any of your teammate's backend code.

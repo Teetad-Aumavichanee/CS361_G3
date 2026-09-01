@@ -16,7 +16,7 @@ def deploy_frontend_website(session, account_id: str, region: str, function_url:
     """
     s3_client = session.client("s3")
     bucket_name = f"cs361-g3-frontend-{account_id}"
-    print(f"\n[Step 4] Deploying Frontend to S3 Website: {bucket_name}")
+    print(f"\ninfo: [Step 4] Deploying Frontend to S3 Website: {bucket_name}")
 
     # 1. Create frontend bucket
     try:
@@ -34,17 +34,20 @@ def deploy_frontend_website(session, account_id: str, region: str, function_url:
 
     # 2. Disable Public Access Block for static website hosting
     try:
-        s3_client.put_public_access_block(
-            Bucket=bucket_name,
-            PublicAccessBlockConfiguration={
-                "BlockPublicAcls": False,
-                "IgnorePublicAcls": False,
-                "BlockPublicPolicy": False,
-                "RestrictBuckets": False,
-            },
-        )
-    except Exception:
-        pass
+        s3_client.delete_public_access_block(Bucket=bucket_name)
+    except ClientError:
+        try:
+            s3_client.put_public_access_block(
+                Bucket=bucket_name,
+                PublicAccessBlockConfiguration={
+                    "BlockPublicAcls": False,
+                    "IgnorePublicAcls": False,
+                    "BlockPublicPolicy": False,
+                    "RestrictPublicBuckets": False,
+                },
+            )
+        except ClientError:
+            pass
 
     # 3. Attach Public Read Policy
     policy = {
@@ -59,19 +62,27 @@ def deploy_frontend_website(session, account_id: str, region: str, function_url:
             }
         ],
     }
-    s3_client.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(policy))
+    try:
+        s3_client.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(policy))
+    except ClientError as err:
+        print(f"   [INFO] S3 Public Policy notice: {err.response['Error']['Message']}")
 
     # 4. Enable Website Hosting
-    s3_client.put_bucket_website(
-        Bucket=bucket_name,
-        WebsiteConfiguration={
-            "IndexDocument": {"Suffix": "html/staff_upload.html"},
-            "ErrorDocument": {"Key": "html/staff_upload.html"},
-        },
-    )
+    try:
+        s3_client.put_bucket_website(
+            Bucket=bucket_name,
+            WebsiteConfiguration={
+                "IndexDocument": {"Suffix": "index.html"},
+                "ErrorDocument": {"Key": "index.html"},
+            },
+        )
+        print(f"   [INFO] S3 Website hosting enabled.")
+    except ClientError as err:
+        print(f"   [ERROR] Could not enable website hosting: {err}")
 
     # 5. Upload Assets with dynamic API URL injection
     frontend_dir = PROJECT_ROOT / "frontend"
+    print("   [INFO] Uploading and syncing frontend assets...", end="", flush=True)
 
     css_file = frontend_dir / "css" / "style.css"
     if css_file.exists():
@@ -91,16 +102,16 @@ def deploy_frontend_website(session, account_id: str, region: str, function_url:
             Body=patched.encode("utf-8"),
             ContentType="text/html",
         )
-        print(f"   Uploaded: html/{html_file.name}")
 
     # Root redirect index.html
     root_redirect = '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=html/staff_upload.html" /></head></html>'
     s3_client.put_object(Bucket=bucket_name, Key="index.html", Body=root_redirect.encode("utf-8"), ContentType="text/html")
+    print(" [Done]")
 
     website_url = (
         f"http://{bucket_name}.s3-website-us-east-1.amazonaws.com"
         if region == "us-east-1"
         else f"http://{bucket_name}.s3-website.{region}.amazonaws.com"
     )
-    print(f"✅ S3 Static Website ready: {website_url}")
+    print(f"info: S3 Static Website ready: {website_url}")
     return website_url

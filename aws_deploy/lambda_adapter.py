@@ -1,4 +1,4 @@
-"""WSGI adapter translating AWS Lambda Function URL events to/from Flask."""
+"""Lambda adapter translating AWS Lambda Function URL events to/from Flask."""
 
 import base64
 import io
