@@ -1,40 +1,42 @@
-"""Lightweight WSGI adapter for AWS Lambda Function URL Format 2.0."""
+"""WSGI adapter translating AWS Lambda Function URL events to/from Flask."""
 
 import base64
 import io
-import urllib.parse
 
 
-def handle_lambda_request(app, event, context):
-    """Handle a Lambda Function URL Format 2.0 event with a WSGI Flask app."""
+def handle_lambda_request(app, event: dict, context) -> dict:
+    """Translate Lambda Function URL Format 2.0 payload to WSGI and execute Flask.
+
+    Handles:
+    - HTTP methods, raw paths, query strings, and custom headers.
+    - Base64-decoded bodies for multipart form file uploads.
+    - Base64-encoded responses for binary file downloads (PDFs/images).
+    - CORS headers on all responses and preflight OPTIONS.
+    """
     http = event.get("requestContext", {}).get("http", {})
     method = http.get("method", "GET")
     raw_path = event.get("rawPath", "/")
     raw_query = event.get("rawQueryString", "")
 
-    # Handle CORS preflight directly
-    if method == "OPTIONS":
-        return {
-            "statusCode": 204,
-            "headers": {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-            },
-            "body": "",
-        }
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+    }
 
-    # Extract body bytes
+    if method == "OPTIONS":
+        return {"statusCode": 204, "headers": cors_headers, "body": ""}
+
+    # Parse request body (decode base64 if binary upload)
     body_str = event.get("body", "")
-    is_base64 = event.get("isBase64Encoded", False)
-    if is_base64 and body_str:
+    if event.get("isBase64Encoded", False) and body_str:
         body_bytes = base64.b64decode(body_str)
     elif body_str:
         body_bytes = body_str.encode("utf-8")
     else:
         body_bytes = b""
 
-    # Extract headers
+    # Construct standard WSGI environment dictionary
     headers = event.get("headers", {}) or {}
     server_name = headers.get("host", "lambda.local").split(":")[0]
 
@@ -56,7 +58,6 @@ def handle_lambda_request(app, event, context):
         "CONTENT_LENGTH": str(len(body_bytes)),
     }
 
-    # Populate HTTP headers into WSGI environ
     for key, value in headers.items():
         key_upper = key.upper().replace("-", "_")
         if key_upper in ("CONTENT_TYPE", "CONTENT_LENGTH"):
@@ -64,7 +65,7 @@ def handle_lambda_request(app, event, context):
         else:
             environ[f"HTTP_{key_upper}"] = value
 
-    # WSGI response accumulator
+    # Accumulate Flask WSGI response
     response_status = ["200 OK"]
     response_headers = []
 
@@ -72,42 +73,23 @@ def handle_lambda_request(app, event, context):
         response_status[0] = status
         response_headers.extend(headers_list)
 
-    # Call Flask application
     response_chunks = app(environ, start_response)
-    response_body_bytes = b"".join(response_chunks)
-
-    # Parse status code
+    response_body = b"".join(response_chunks)
     status_code = int(response_status[0].split()[0])
 
-    # Build response headers dictionary
-    out_headers = {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-    }
+    out_headers = dict(cors_headers)
     content_type = "text/html; charset=utf-8"
     for k, v in response_headers:
         out_headers[k] = v
         if k.lower() == "content-type":
             content_type = v.lower()
 
-    # Determine if response is binary (e.g. PDF, images, octet-stream)
-    is_binary = any(
-        t in content_type
-        for t in ["pdf", "image", "octet-stream", "zip", "audio", "video"]
-    )
+    # Determine binary payloads (PDF, images, zip) for base64 encoding
+    is_binary = any(t in content_type for t in ["pdf", "image", "octet-stream", "zip"])
 
-    if is_binary:
-        return {
-            "statusCode": status_code,
-            "headers": out_headers,
-            "isBase64Encoded": True,
-            "body": base64.b64encode(response_body_bytes).decode("ascii"),
-        }
-    else:
-        return {
-            "statusCode": status_code,
-            "headers": out_headers,
-            "isBase64Encoded": False,
-            "body": response_body_bytes.decode("utf-8", errors="replace"),
-        }
+    return {
+        "statusCode": status_code,
+        "headers": out_headers,
+        "isBase64Encoded": is_binary,
+        "body": base64.b64encode(response_body).decode("ascii") if is_binary else response_body.decode("utf-8", errors="replace"),
+    }
