@@ -73,7 +73,9 @@ Table DOCUMENTS {
 }
 
 ## 6. Cloud Architecture 
-wait...
+- Lamda: Backend
+- Storege S3: Frontend
+- Mongo Atlas: Database NoSQL 
 
 ## 7. Folder Structure
 
