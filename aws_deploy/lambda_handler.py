@@ -9,6 +9,14 @@ PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+# Auto-normalize MONGO_URI to include default database name (/e_mailbox)
+mongo_uri = os.environ.get("MONGO_URI", "")
+if mongo_uri:
+    if ".mongodb.net/?" in mongo_uri and "/e_mailbox?" not in mongo_uri:
+        os.environ["MONGO_URI"] = mongo_uri.replace(".mongodb.net/?", ".mongodb.net/e_mailbox?")
+    elif mongo_uri.endswith(".mongodb.net"):
+        os.environ["MONGO_URI"] = mongo_uri + "/e_mailbox"
+
 from backend.app import app
 from backend.routes import documents as documents_route_module
 from aws_deploy.s3_storage_service import S3FileStorageService
@@ -21,5 +29,5 @@ documents_route_module.document_service.file_storage_service = s3_storage
 
 
 def lambda_handler(event, context):
-    """Main Lambda invocation handler for Lambda Function URL."""
+    """Main Lambda invocation handler for API Gateway / Function URL."""
     return handle_lambda_request(app, event, context)

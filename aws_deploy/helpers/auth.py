@@ -46,12 +46,23 @@ def get_aws_session():
         sys.exit(1)
 
 
+def normalize_mongo_uri(uri: str) -> str:
+    """Ensure MongoDB connection string includes the default database name."""
+    if not uri:
+        return uri
+    if ".mongodb.net/?" in uri and "/e_mailbox?" not in uri:
+        return uri.replace(".mongodb.net/?", ".mongodb.net/e_mailbox?")
+    if uri.endswith(".mongodb.net"):
+        return uri + "/e_mailbox"
+    return uri
+
+
 def get_mongo_uri():
     """Retrieve MONGO_URI from environment or prompt the user."""
     mongo_uri = os.getenv("MONGO_URI")
     if mongo_uri and "localhost" not in mongo_uri:
-        return mongo_uri
+        return normalize_mongo_uri(mongo_uri)
 
     print("\nerror:  No cloud MongoDB URI found in environment.")
     user_input = input("Enter your MongoDB Atlas Connection String (or press Enter for default): ").strip()
-    return user_input if user_input else "mongodb://localhost:27017/e_mailbox"
+    return normalize_mongo_uri(user_input) if user_input else "mongodb://localhost:27017/e_mailbox"
