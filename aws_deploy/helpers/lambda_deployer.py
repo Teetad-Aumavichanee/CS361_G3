@@ -1,4 +1,4 @@
-"""AWS Lambda function provisioning and Function URL configuration."""
+"""AWS Lambda and API Gateway HTTP API provisioning."""
 
 import time
 from pathlib import Path
@@ -31,13 +31,14 @@ def deploy_lambda_function(
     mongo_uri: str,
     zip_path: Path,
 ) -> str:
-    """Deploy or update the Fat Lambda function using fast S3-backed transfer.
+    """Deploy the Fat Lambda function and expose it via AWS API Gateway HTTP API.
 
     Returns:
-        str: The public HTTPS endpoint for the Lambda Function URL.
+        str: The public HTTPS endpoint for API Gateway.
     """
     s3_client = session.client("s3")
     lambda_client = session.client("lambda")
+    apigw_client = session.client("apigatewayv2")
     lambda_name = "cs361-g3-backend"
     role_arn = f"arn:aws:iam::{account_id}:role/LabRole"
 
@@ -56,7 +57,8 @@ def deploy_lambda_function(
 
     # 2. Create or update Lambda function using S3 reference
     try:
-        lambda_client.get_function(FunctionName=lambda_name)
+        lambda_info = lambda_client.get_function(FunctionName=lambda_name)
+        lambda_arn = lambda_info["Configuration"]["FunctionArn"]
         print("   [INFO] Updating existing Lambda code...", end="", flush=True)
         lambda_client.update_function_code(
             FunctionName=lambda_name,
@@ -82,7 +84,7 @@ def deploy_lambda_function(
     except ClientError as err:
         if err.response["Error"]["Code"] == "ResourceNotFoundException":
             print("   [INFO] Creating new Lambda function...", end="", flush=True)
-            lambda_client.create_function(
+            create_resp = lambda_client.create_function(
                 FunctionName=lambda_name,
                 Runtime="python3.11",
                 Role=role_arn,
@@ -92,6 +94,7 @@ def deploy_lambda_function(
                 MemorySize=512,
                 Environment={"Variables": env_vars},
             )
+            lambda_arn = create_resp["FunctionArn"]
             print(" [Done]")
             wait_for_lambda_ready(lambda_client, lambda_name, "Waiting for Lambda function to become Active")
         else:
@@ -101,47 +104,67 @@ def deploy_lambda_function(
     if zip_path.exists():
         zip_path.unlink()
 
-    # 3. Configure public Lambda Function URL with CORS
-    print("   [INFO] Configuring Lambda Function URL & CORS...", end="", flush=True)
-    cors_config = {
-        "AllowOrigins": ["*"],
-        "AllowMethods": ["*"],
-        "AllowHeaders": ["*"],
-        "MaxAge": 86400,
-    }
+    # 3. Create or Update API Gateway HTTP API
+    print("   [INFO] Configuring API Gateway HTTP API & CORS...", end="", flush=True)
+    api_name = "cs361-g3-api"
+    api_id = None
+    api_endpoint = None
 
-    try:
-        url_resp = lambda_client.create_function_url_config(
-            FunctionName=lambda_name,
-            AuthType="NONE",
-            Cors=cors_config,
+    # Find existing API if present
+    apis = apigw_client.get_apis().get("Items", [])
+    for api in apis:
+        if api.get("Name") == api_name:
+            api_id = api["ApiId"]
+            api_endpoint = api["ApiEndpoint"]
+            break
+
+    if not api_id:
+        new_api = apigw_client.create_api(
+            Name=api_name,
+            ProtocolType="HTTP",
+            CorsConfiguration={
+                "AllowOrigins": ["*"],
+                "AllowMethods": ["*"],
+                "AllowHeaders": ["*"],
+                "MaxAge": 86400,
+            },
         )
-        function_url = url_resp["FunctionUrl"]
-    except ClientError as err:
-        if err.response["Error"]["Code"] == "ResourceConflictException":
-            url_resp = lambda_client.update_function_url_config(
-                FunctionName=lambda_name,
-                AuthType="NONE",
-                Cors=cors_config,
-            )
-            function_url = url_resp["FunctionUrl"]
-        else:
-            raise
+        api_id = new_api["ApiId"]
+        api_endpoint = new_api["ApiEndpoint"]
 
-    # Allow public invocation
+        integration = apigw_client.create_integration(
+            ApiId=api_id,
+            IntegrationType="AWS_PROXY",
+            IntegrationUri=lambda_arn,
+            PayloadFormatVersion="2.0",
+        )
+        integration_id = integration["IntegrationId"]
+
+        apigw_client.create_route(
+            ApiId=api_id,
+            RouteKey="$default",
+            Target=f"integrations/{integration_id}",
+        )
+
+        apigw_client.create_stage(
+            ApiId=api_id,
+            StageName="$default",
+            AutoDeploy=True,
+        )
+
+    # Allow API Gateway to invoke Lambda
     try:
         lambda_client.add_permission(
             FunctionName=lambda_name,
-            StatementId="FunctionURLAllowPublicAccess",
-            Action="lambda:InvokeFunctionUrl",
-            Principal="*",
-            FunctionUrlAuthType="NONE",
+            StatementId="ApiGatewayInvokePermission",
+            Action="lambda:InvokeFunction",
+            Principal="apigateway.amazonaws.com",
+            SourceArn=f"arn:aws:execute-api:{region}:{account_id}:{api_id}/*/*",
         )
-    except ClientError as err:
-        if err.response["Error"]["Code"] != "ResourceConflictException":
-            pass
+    except ClientError:
+        pass
 
-    function_url = function_url.rstrip("/")
+    api_endpoint = api_endpoint.rstrip("/")
     print(" [Done]")
-    print(f"info: Lambda Function URL active: {function_url}")
-    return function_url
+    print(f"info: API Gateway active: {api_endpoint}")
+    return api_endpoint

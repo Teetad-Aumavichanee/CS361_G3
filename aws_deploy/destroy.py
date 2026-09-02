@@ -52,6 +52,21 @@ def delete_lambda(lambda_client, function_name: str):
             print(f" [Error: {err.response['Error']['Message']}]")
 
 
+def delete_api_gateway(apigw_client, api_name: str):
+    """Delete an AWS API Gateway HTTP API."""
+    print(f"info: Deleting API Gateway: {api_name}...", end="", flush=True)
+    try:
+        apis = apigw_client.get_apis().get("Items", [])
+        for api in apis:
+            if api.get("Name") == api_name:
+                apigw_client.delete_api(ApiId=api["ApiId"])
+                print(" [Done]")
+                return
+        print(" [Not Found / Already Deleted]")
+    except ClientError as err:
+        print(f" [Error: {err.response['Error']['Message']}]")
+
+
 def main():
     print("info: AWS Teardown Utility")
     session, account_id, region = get_aws_session()
@@ -59,8 +74,10 @@ def main():
     doc_bucket = f"cs361-g3-documents-{account_id}"
     frontend_bucket = f"cs361-g3-frontend-{account_id}"
     lambda_name = "cs361-g3-backend"
+    api_name = "cs361-g3-api"
 
     print("\nThe following resources will be deleted:")
+    print(f" - API Gateway: {api_name}")
     print(f" - Lambda Function: {lambda_name}")
     print(f" - S3 Document Bucket: {doc_bucket}")
     print(f" - S3 Frontend Bucket: {frontend_bucket}")
@@ -72,8 +89,10 @@ def main():
 
     s3_client = session.client("s3")
     lambda_client = session.client("lambda")
+    apigw_client = session.client("apigatewayv2")
 
-    # 1. Delete Lambda
+    # 1. Delete API Gateway & Lambda
+    delete_api_gateway(apigw_client, api_name)
     delete_lambda(lambda_client, lambda_name)
 
     # 2. Delete S3 Buckets
